@@ -1,0 +1,13 @@
+{
+    "entry": "EasyCheckUpdate.js",
+    "name": "EasyCheckUpdate",
+    "type": "lse-quickjs",
+    "description": "一个基于 LSE 的插件更新检查工具 / A plugin update checker based on LSE.",
+    "author": "MengHanLOVE1027",
+    "version": "0.1.0",
+    "dependencies": [
+        {
+            "name": "legacy-script-engine-quickjs"
+        }
+    ]
+}
