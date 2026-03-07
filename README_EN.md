@@ -1,13 +1,13 @@
 <div align="center">
 
-![LSE-EasyBackuper](https://socialify.git.ci/MengHanLOVE1027/lse-easybackuper/image?custom_language=JavaScript&description=1&font=Inter&forks=1&issues=1&language=1&logo=https://zh.minecraft.wiki/images/Chiseled_Bookshelf_%28stage_6%29_%28S%29_JE1.png?bbb31&name=1&owner=1&pattern=Plus&pulls=1&stargazers=1&theme=Auto)
-  <!-- <a href="https://github.com/MengHanLOVE1027/lse-easybackuper/releases">
+![LSE-EasyCheckUpdate](https://socialify.git.ci/MengHanLOVE1027/lse-easycheckupdate/image?custom_language=JavaScript&description=1&font=Inter&forks=1&issues=1&language=1&logo=https://zh.minecraft.wiki/images/Chiseled_Bookshelf_%28stage_6%29_%28S%29_JE1.png?bbb31&name=1&owner=1&pattern=Plus&pulls=1&stargazers=1&theme=Auto)
+  <!-- <a href="https://github.com/MengHanLOVE1027/lse-easycheckupdate/releases">
     <img src="https://avatars.githubusercontent.com/u/99132833?v=4" alt="Logo" width="128" height="128">
   </a> -->
-<h3>LSE-EasyBackuper</h3>
+<h3>LSE-EasyCheckUpdate</h3>
 
 <p>
-  <b>A lightweight, high-performance, and comprehensive hot backup plugin for Minecraft servers based on LeviLamina. </b>
+  <b>A lightweight plugin update checker for LeviLamina servers. </b>
 
 Powered by LeviLamina.<br>
 </p>
@@ -16,7 +16,7 @@ Powered by LeviLamina.<br>
 
 [![README](https://img.shields.io/badge/README-中文|Chinese-blue)](README.md) [![README_EN](https://img.shields.io/badge/README-英文|English-blue)](README_EN.md)
 
-[![Github Version](https://img.shields.io/github/v/release/MengHanLOVE1027/lse-easybackuper)](https://github.com/MengHanLOVE1027/lse-easybackuper/releases) [![GitHub License](https://img.shields.io/badge/License-AGPL%203.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0) [![LSE Version](https://img.shields.io/badge/LSE-0.10.2+-yellow.svg)](https://github.com/LeviLamina/LeviLamina) [![Platform](https://img.shields.io/badge/Platform-LeviLamina-9cf.svg)](https://levimc.org/) [![Downloads](https://img.shields.io/github/downloads/MengHanLOVE1027/lse-easybackuper/total.svg)](https://github.com/MengHanLOVE1027/lse-easybackuper/releases)
+[![Github Version](https://img.shields.io/github/v/release/MengHanLOVE1027/lse-easycheckupdate)](https://github.com/MengHanLOVE1027/lse-easycheckupdate/releases) [![GitHub License](https://img.shields.io/badge/License-AGPL%203.0-blue.svg)](https://opensource.org/licenses/AGPL-3.0) [![LSE Version](https://img.shields.io/badge/LSE-0.10.2+-yellow.svg)](https://github.com/LeviLamina/LeviLamina) [![Platform](https://img.shields.io/badge/Platform-LeviLamina-9cf.svg)](https://levimc.org/) [![Downloads](https://img.shields.io/github/downloads/MengHanLOVE1027/lse-easycheckupdate/total.svg)](https://github.com/MengHanLOVE1027/lse-easycheckupdate/releases)
 
 </div>
 
@@ -24,7 +24,7 @@ Powered by LeviLamina.<br>
 
 ## 📖 Introduction
 
-LSE-EasyBackuper is a backup plugin specifically designed for LeviLamina servers, aiming to simplify the backup process, improve backup efficiency, and ensure data security. It supports automatic scheduled backups, intelligent cleanup, real-time notifications, multi-threaded acceleration, multi-format support, backup restoration, and multi-language support, providing server administrators with a comprehensive data protection solution.
+LSE-EasyCheckUpdate is a plugin update checker specifically designed for LeviLamina servers, aiming to simplify the plugin update process and improve server management efficiency. It supports automatic plugin update checking, batch plugin updates, version comparison, and detailed update logs, providing server administrators with a convenient plugin update solution.
 
 ---
 
@@ -32,14 +32,14 @@ LSE-EasyBackuper is a backup plugin specifically designed for LeviLamina servers
 
 | Feature              | Description                              |
 | ----------------- | --------------------------------- |
-| 🔄**Automatic Scheduled Backup** | Intelligent scheduled backup based on cron expressions      |
-| 🧹**Intelligent Cleanup**     | Automatically clean old backups to save disk space      |
-| 📢**Real-time Notifications**     | Send notifications to players before and after backup            |
-| ⚡**Multi-threaded Acceleration**   | Parallel file processing, significantly improving backup speed    |
-| 🗜️**Multi-format Support**   | Supports 7z, zip, tar.gz compression formats |
-| 🔄**Backup Restoration**     | One-click restore backup, supports automatic restart        |
-| 🌍**Multi-language Interface**   | Supports Chinese, English and other languages        |
-| 📝**Complete Logging System** | Colored log output, daily log storage      |
+| 🔄**Automatic Update Check** | Automatically check updates for all loaded plugins      |
+| 📦**Batch Update**     | Support batch update for multiple plugins              |
+| 📢**Real-time Notifications**     | Send notifications to administrators when updates are detected      |
+| ⚡**Fast Check**     | Efficient version comparison algorithm                |
+| 🔄**Version Comparison**     | Support complex version number comparison              |
+| 📝**Detailed Logs**     | Colored log output, daily log storage      |
+| 🌍**Multi-plugin Support**   | Support all plugins that export CheckUpdate function |
+| 📊**Telemetry Statistics**     | Integrated BStats for usage statistics          |
 
 ---
 
@@ -48,18 +48,13 @@ LSE-EasyBackuper is a backup plugin specifically designed for LeviLamina servers
 ```
 Server Root/
 ├── logs/
-│   └── EasyBackuper/                    # Log directory
-│       └── easybackuper_YYYYMMDD.log    # Main log file
-├── plugins/
-│   └── EasyBackuper/                    # Plugin resource directory
-│       ├── 7za.exe                      # 7z compression tool
-│       ├── EasyBackuper.js              # Main plugin file
-│       ├── config/
-│       │   └── EasyBackuper.json        # Configuration file
-│       └── langs/                       # Multi-language files
-│           ├── zh_CN.json               # Simplified Chinese
-│           └── en_US.json               # English
-└── backup/                              # Backup file storage directory
+│   └── EasyCheckUpdate/                    # Log directory
+│       └── easycheckupdate_YYYYMMDD.log    # Main log file
+└── plugins/
+    └── EasyCheckUpdate/                    # Plugin resource directory
+        ├── EasyCheckUpdate.js              # Main plugin file
+        └── config/
+            └── EasyCheckUpdate.json        # Configuration file
 ```
 
 ---
@@ -69,8 +64,8 @@ Server Root/
 ### Installation Steps
 
 1. **Download Plugin**
-   - Download the latest version from [Release Page](https://github.com/MengHanLOVE1027/lse-easybackuper/releases)
-   - Or get it from [MineBBS](https://www.minebbs.com/resources/easybackuper-eb-minecraft.7771/)
+   - Download the latest version from [Release Page](https://github.com/MengHanLOVE1027/lse-easycheckupdate/releases)
+   - Or get it from [MineBBS](https://www.minebbs.com/resources/easycheckupdate-ecu-lse.15501/)
 
 2. **Install Plugin**
    ```bash
@@ -78,194 +73,186 @@ Server Root/
    ```
    Or install using lip command:
    ```sh
-   lip install github.com/MengHanLOVE1027/lse-easybackuper
+   lip install github.com/MengHanLOVE1027/lse-easycheckupdate
    ```
 
-3. **Install Dependencies**
-   - Place `7za.exe`, `mhlove-truncate.exe` in the `plugins/lse-easybackuper/` directory (mhlove-truncate.exe can be obtained from the [Release Page](https://github.com/MengHanLOVE1027/lse-easybackuper/releases) or [MineBBS](https://www.minebbs.com/resources/easybackuper-eb-minecraft.7771/))
-
-4. **Start Server**
-   - Restart the server or use `/ll reload EasyBackuper` command
+3. **Start Server**
+   - Restart the server or use `/ll reload EasyCheckUpdate` command
    - The plugin will automatically generate default configuration files
 
 ---
 
 ## ⚙️ Configuration Details
 
-Configuration file location: `plugins/lse-easybackuper/config/EasyBackuper.json`
+Configuration file location: `plugins/lse-easycheckupdate/config/EasyCheckUpdate.json`
 
 ### 📋 Main Configuration Items
 
 ```json
 {
-  // 🌐 Internationalization Settings
-  "Language": "en_US",  // Options: zh_CN, en_US
-
-  // 🗜️ Compression Configuration
-  "Compression": {
-    "method": "zip",  // Compression algorithm: 7z, zip, tar
-    "exe_7z_path": "./plugins/EasyBackuper/7za.exe",  // 7z executable path
-    "formats": {
-      "7z": {
-        "extension": ".7z",
-        "compress_args": ["a", "-t7z", "-mx=5"],
-        "extract_args": ["x", "-y"]
-      },
-      "zip": {
-        "extension": ".zip",
-        "compress_args": ["a", "-tzip", "-mx=5"],
-        "extract_args": ["x", "-y"]
-      },
-      "tar": {
-        "extension": ".tar.gz",
-        "compress_args": ["a", "-ttar", "-mx=5"],
-        "extract_args": ["x", "-y"]
-      }
-    }
+  // 📊 BStats telemetry configuration
+  "Bstats": {
+    "EnableModule": true,        // Enable BStats telemetry
+    "logSentData": false,        // Log sent data (for debugging)
+    "serverUUID": "Auto-generated UUID"  // Server unique identifier (auto-generated)
   },
 
-  // 📁 Storage Path
-  "BackupFolderPath": "./backup",  // Backup file storage path
-
-  // ⚡ Performance Configuration
-  "Max_Workers": 4,  // Number of concurrent threads
-
-  // 🧹 Auto Cleanup
-  "Auto_Clean": {
-    "Use_Number_Detection": {
-      "Status": false,    // Enable auto cleanup
-      "Max_Number": 5,   // Maximum number of backups to keep
-      "Mode": 0          // 0=Clean after server start, 1=Clean after backup, 2=Clean on server start
-    }
-  },
-
-  // ⏰ Scheduled Tasks
-  "Scheduled_Tasks": {
-    "Status": false,                // Enable scheduled backup
-    "Cron": "*/30 * * * * *"      // Cron expression, every 30 seconds
-  },
-
-  // 📢 Notification Settings
-  "Broadcast": {
-    "Status": true,                // Enable broadcast notifications
-    "Time_ms": 5000,              // Notification time before backup (milliseconds)
-    "Title": "[OP]Backup starting soon~",
-    "Message": "Backup will start in 5 seconds!",
-    "Server_Title": "[Server]Never Gonna Give You UP~",
-    "Server_Message": "Never Gonna Let You Down~",
-    "Backup_success_Title": "Backup completed!",
-    "Backup_success_Message": "Star service, connecting with love",
-    "Backup_wrong_Title": "Excellent service, backup failed",
-    "Backup_wrong_Message": "RT"
-  },
-
-  // 🔍 Debug Settings
-  "Debug_MoreLogs": false,         // Enable detailed logs (console)
-  "Debug_MoreLogs_Player": false,  // Enable detailed logs (player)
-  "Debug_MoreLogs_Cron": false,   // Enable detailed logs (Cron tasks)
-
-  // 🔄 Restore Configuration
-  "Restore": {
-    "backup_old_world_before_restore": true,  // Backup current world before restore
-  }
+  // 🔄 Update check configuration
+  "check_update_on_load": true,  // Automatically check updates on plugin load
+  "check_interval": 1800,        // Update check interval (seconds), default 30 minutes
+  "check_delay": 10,             // First check delay (seconds)
+  "last_check_time": 0           // Last check timestamp (auto-recorded)
 }
 ```
 
-### ⏰ Cron Expression Examples
+### 🔄 Automatic Update Check
 
-| Expression           | Description        |
-| ---------------- | ----------- |
-| `*/30 * * * * *` | Every 30 seconds  |
-| `0 0 3 ? * *`    | Every day at 3 AM |
-| `0 0 */2 ? * ?`  | Every 2 hours |
-| `0 0 0 ? * MON`  | Every Monday at midnight  |
+The plugin supports automatically checking updates for all plugins when loaded, which can be controlled through the configuration file.
 
----
+#### Configuration Description
+
+| Configuration Item | Type | Default Value | Description |
+| ------ | ---- | ------ | ---- |
+| `check_update_on_load` | Boolean | `true` | Whether to automatically check updates when plugin loads |
+| `check_delay` | Number | `10` | Delay time for first check (seconds) |
+| `check_interval` | Number | `1800` | Update check interval (seconds), default 30 minutes |
+| `last_check_time` | Number | `0` | Last check timestamp (auto-recorded, no manual modification needed) |
+
+#### Workflow
+
+1. Plugin loading completed
+2. Check `check_update_on_load` configuration
+3. If enabled, output prompt: `Will automatically check all plugin updates in X seconds...`
+4. Wait for `check_delay` seconds
+5. Automatically execute `checkAllPluginsUpdate()` to check all plugin updates
+6. Output check result: `Check completed, checked X plugins that support update checking`
+
+#### Example
+
+```json
+{
+  "check_update_on_load": true,  // Enable automatic check
+  "check_delay": 10,             // Start checking after 10 seconds
+  "check_interval": 1800,        // Check interval 30 minutes
+  "last_check_time": 0
+}
+```
+
+#### Notes
+
+- First check delay time is recommended to be set to 10-30 seconds, giving the server startup enough time
+- Check interval time is recommended to be set to 1800-3600 seconds (30-60 minutes) to avoid frequent checking
+- If automatic check is not needed, set `check_update_on_load` to `false`
 
 ## 🎮 Command Manual
 
-### Backup Management Commands
+### Update Check Commands
 
-| Command             | Permission | Description               |
-| ---------------- | ---- | ------------------ |
-| `/backup`        | OP   | Execute manual backup immediately   |
-| `/backup init`   | OP   | Reinitialize configuration file |
-| `/backup reload` | OP   | Reload configuration file       |
-
-### Restore Management Commands
-
-| Command                   | Permission | Description                          |
-| ---------------------- | ---- | ----------------------------- |
-| `/restore list <number>` | OP   | Show all available backups (can specify number) |
-| `/restore <index>`      | OP   | Restore specified backup                  |
-| `/restore`             | OP   | Show restore help                  |
+| Command                           | Permission | Description                     |
+| ------------------------------ | ---- | ------------------------ |
+| `/checkupdate` or `/ecu`      | OP   | Display help information             |
+| `/checkupdate all`             | OP   | Check updates for all plugins       |
+| `/checkupdate reload`          | OP   | Reload plugin configuration             |
+| `/checkupdate update <plugin>` | OP   | Update specified plugin             |
+| `/checkupdate <plugin>`        | OP   | Check updates for specified plugin       |
 
 ---
 
-## 🔧 Advanced Features
+## 🔧 Developer Usage
 
-### 🗜️ 7z Compression Configuration
+Plugin developers can enable automatic update checking for their plugins by exporting a `CheckUpdate` function.
 
-1. **Download 7za.exe**
-   ```bash
-   # Download 7za.exe from 7-Zip official website
-   # Place it in plugins/EasyBackuper/ directory
-   ```
+### Exporting CheckUpdate Function
 
-2. **Modify Configuration**
-   ```json
-   {
-     "Compression": {
-       "method": "7z",
-       "exe_7z_path": "./plugins/EasyBackuper/7za.exe"
-     }
-   }
-   ```
+Export a `CheckUpdate` function in your plugin that returns an object containing update information.
 
-3. **Reload Configuration**
-   ```bash
-   /backup reload
-   ```
+#### Method 1: Export via "ecu" namespace
 
-### 🚀 Multi-threading Optimization Recommendations
+```javascript
+// Export CheckUpdate function in your plugin
+ll.export("ecu", "YourPluginName", function() {
+    return {
+        plugin_version: "v1.0.0",
+        update_url: "https://your-update-url.com/update.json"
+    };
+});
+```
 
-| Server Type         | Recommended Threads | Description            |
-| ------------------ | ---------- | --------------- |
-| Small Server (1-2 cores) | 2-4        | Avoid excessive CPU usage |
-| Medium Server (4 cores)   | 4-6        | Balance performance and resources  |
-| Large Server (8+ cores)  | 6-8        | Maximize backup speed  |
+#### Method 2: Directly export CheckUpdate function
 
-> ⚠️ **Note**: Too many threads may cause server lag, please adjust according to actual situation.
+```javascript
+// Export CheckUpdate function in your plugin
+ll.export("YourPluginName", "CheckUpdate", function() {
+    return {
+        plugin_version: "v1.0.0",
+        update_url: "https://your-update-url.com/update.json"
+    };
+});
+```
 
----
+### Update Information File Format
 
-## 🛠️ Troubleshooting
+Your update information file (e.g., update.json) needs to contain the following information.
 
-### Common Issues
+#### Single Version Format
 
-<details>
-<summary><b>❓ Automatic backup not executing</b></summary>
+```json
+{
+    "version": "1.0.0",
+    "download_url": "https://your-download-url.com/plugin.zip",
+    "update_content": "Update content description",
+    "author": "Author Name",
+    "update_time": "2024-01-01"
+}
+```
 
-**Check Steps:**
-1. Confirm scheduled task status is enabled
-   ```json
-   "Scheduled_Tasks": {
-     "Status": true,
-     ...
-   }
-   ```
-2. Check cron expression format
-3. View log files
-   ```bash
-   cat logs/EasyBackuper/easybackuper_*.log
-   ```
-</details>
+#### Multi-Version Format
 
-### 📊 Log File Description
+```json
+{
+    "latest_version": "1.0.0",
+    "versions": {
+        "1.0.0": {
+            "download_url": "https://your-download-url.com/plugin-v1.0.0.zip",
+            "update_content": "Update content description",
+            "author": "Author Name",
+            "update_time": "2024-01-01"
+        }
+    }
+}
+```
 
-| Log File | Location                                                  | Purpose                       |
-| -------- | ----------------------------------------------------- | -------------------------- |
-| Main Log   | `logs/EasyBackuper/easybackuper_YYYYMMDD.log`         | Record backup, cleanup and other routine operations   |
+### Complete Example
+
+```javascript
+// Your plugin code
+const pluginName = "MyPlugin";
+const pluginVersion = "v1.0.0";
+
+// Export CheckUpdate function
+ll.export("ecu", pluginName, function() {
+    return {
+        plugin_version: pluginVersion,
+        update_url: `https://raw.githubusercontent.com/YourUsername/${pluginName}/main/update.json`
+    };
+});
+
+// Or use the second method
+ll.export(pluginName, "CheckUpdate", function() {
+    return {
+        plugin_version: pluginVersion,
+        update_url: `https://raw.githubusercontent.com/YourUsername/${pluginName}/main/update.json`
+    };
+});
+```
+
+### Workflow
+
+1. EasyCheckUpdate plugin automatically detects all loaded plugins
+2. Checks if the plugin has exported a `CheckUpdate` function
+3. If exported, calls the function to get update information
+4. Downloads update information from the returned `update_url`
+5. Compares version numbers and notifies administrator if a new version is available
 
 ---
 
@@ -307,8 +294,8 @@ Issues and Pull Requests are welcome!
 
 ## 🌟 Support & Feedback
 
-- **GitHub Issues**: [Submit Issue](https://github.com/MengHanLOVE1027/lse-easybackuper/issues)
-- **MineBBS**: [Discussion Thread](https://www.minebbs.com/resources/easybackuper-eb-minecraft.7771/)
+- **GitHub Issues**: [Submit Issue](https://github.com/MengHanLOVE1027/lse-easycheckupdate/issues)
+- **MineBBS**: [Discussion Thread](https://www.minebbs.com/resources/easycheckupdate-ecu-lse.15501/)
 - **Author**: 梦涵LOVE
 
 ---
@@ -317,4 +304,6 @@ Issues and Pull Requests are welcome!
 
 **⭐ If this project helps you, please give us a Star!**
 
-[![Star History Chart](https://api.star-history.com/svg?repos=MengHanLOVE1027/lse-easybackuper&type=Date)](https://star-history.com/#MengHanLOVE1027/lse-easybackuper&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=MengHanLOVE1027/lse-easycheckupdate&type=Date)](https://star-history.com/#MengHanLOVE1027/lse-easycheckupdate&Date)
+
+</div>

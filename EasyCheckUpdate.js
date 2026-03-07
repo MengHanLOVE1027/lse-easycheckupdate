@@ -463,6 +463,15 @@ function Loadplugin() {
     } catch (e) {
         pluginPrint("指令注册失败: " + e, "ERROR");
     }
+
+    // 自动检查更新
+    if (pluginConfig && pluginConfig.check_update_on_load) {
+        const delay = pluginConfig.check_delay || 10;
+        pluginPrint(`将在 ${delay} 秒后自动检查所有插件的更新...`);
+        setTimeout(() => {
+            checkAllPluginsUpdate();
+        }, delay * 1000);
+    }
 }
 
 // TAG: 更新检查模块

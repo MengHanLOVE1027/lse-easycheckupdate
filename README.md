@@ -105,6 +105,45 @@ LSE-EasyCheckUpdate 是一个专为 LeviLamina 服务器设计的插件更新检
 }
 ```
 
+### 🔄 自动检查更新
+
+插件支持在加载时自动检查所有插件的更新，此功能可通过配置文件控制。
+
+#### 配置说明
+
+| 配置项 | 类型 | 默认值 | 描述 |
+| ------ | ---- | ------ | ---- |
+| `check_update_on_load` | Boolean | `true` | 是否在插件加载时自动检查更新 |
+| `check_delay` | Number | `10` | 首次检查的延迟时间（秒） |
+| `check_interval` | Number | `1800` | 检查更新间隔（秒），默认30分钟 |
+| `last_check_time` | Number | `0` | 上次检查时间戳（自动记录，无需手动修改） |
+
+#### 工作流程
+
+1. 插件加载完成
+2. 检查 `check_update_on_load` 配置
+3. 如果启用，输出提示信息：`将在 X 秒后自动检查所有插件的更新...`
+4. 等待 `check_delay` 秒
+5. 自动执行 `checkAllPluginsUpdate()` 检查所有插件更新
+6. 输出检查结果：`检查完成，共检查了 X 个支持更新检查的插件`
+
+#### 示例
+
+```json
+{
+  "check_update_on_load": true,  // 启用自动检查
+  "check_delay": 10,             // 10秒后开始检查
+  "check_interval": 1800,        // 检查间隔30分钟
+  "last_check_time": 0
+}
+```
+
+#### 注意事项
+
+- 首次检查延迟时间建议设置为 10-30 秒，给服务器启动留出足够时间
+- 检查间隔时间建议设置为 1800-3600 秒（30-60 分钟），避免频繁检查
+- 如果不需要自动检查，可将 `check_update_on_load` 设置为 `false`
+
 ## 🎮 命令手册
 
 ### 更新检查命令
@@ -116,6 +155,104 @@ LSE-EasyCheckUpdate 是一个专为 LeviLamina 服务器设计的插件更新检
 | `/checkupdate reload`          | OP   | 重载插件配置             |
 | `/checkupdate update <插件名>` | OP   | 更新指定插件             |
 | `/checkupdate <插件名>`        | OP   | 检查指定插件的更新       |
+
+---
+
+## 🔧 开发者调用方式
+
+插件开发者可以通过导出 `CheckUpdate` 函数来让 EasyCheckUpdate 自动检测插件的更新。
+
+### 导出 CheckUpdate 函数
+
+在你的插件中导出 `CheckUpdate` 函数，该函数返回一个包含更新信息的对象。
+
+#### 方式一：通过 "ecu" 命名空间导出
+
+```javascript
+// 在你的插件中导出 CheckUpdate 函数
+ll.export("ecu", "YourPluginName", function() {
+    return {
+        plugin_version: "v1.0.0",
+        update_url: "https://your-update-url.com/update.json"
+    };
+});
+```
+
+#### 方式二：直接导出 CheckUpdate 函数
+
+```javascript
+// 在你的插件中导出 CheckUpdate 函数
+ll.export("YourPluginName", "CheckUpdate", function() {
+    return {
+        plugin_version: "v1.0.0",
+        update_url: "https://your-update-url.com/update.json"
+    };
+});
+```
+
+### 更新信息文件格式
+
+你的更新信息文件（如 update.json）需要包含以下信息。
+
+#### 单版本格式
+
+```json
+{
+    "version": "1.0.0",
+    "download_url": "https://your-download-url.com/plugin.zip",
+    "update_content": "更新内容描述",
+    "author": "作者名",
+    "update_time": "2024-01-01"
+}
+```
+
+#### 多版本格式
+
+```json
+{
+    "latest_version": "1.0.0",
+    "versions": {
+        "1.0.0": {
+            "download_url": "https://your-download-url.com/plugin-v1.0.0.zip",
+            "update_content": "更新内容描述",
+            "author": "作者名",
+            "update_time": "2024-01-01"
+        }
+    }
+}
+```
+
+### 完整示例
+
+```javascript
+// 你的插件代码
+const pluginName = "MyPlugin";
+const pluginVersion = "v1.0.0";
+
+// 导出 CheckUpdate 函数
+ll.export("ecu", pluginName, function() {
+    return {
+        plugin_version: pluginVersion,
+        update_url: `https://raw.githubusercontent.com/YourUsername/${pluginName}/main/update.json`
+    };
+});
+
+// 或者使用第二种方式
+ll.export(pluginName, "CheckUpdate", function() {
+    return {
+        plugin_version: pluginVersion,
+        update_url: `https://raw.githubusercontent.com/YourUsername/${pluginName}/main/update.json`
+    };
+});
+```
+
+### 工作流程
+
+1. EasyCheckUpdate 插件会自动检测所有已加载的插件
+2. 检查插件是否导出了 `CheckUpdate` 函数
+3. 如果导出了，调用该函数获取更新信息
+4. 从返回的 `update_url` 下载更新信息
+5. 比较版本号，如果有新版本则通知管理员
 
 ---
 
