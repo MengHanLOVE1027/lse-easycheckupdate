@@ -3,7 +3,7 @@
 // 声明常量
 const plugin_name = "EasyCheckUpdate",
     plugin_name_smallest = "easycheckupdate",
-    plugin_version = "0.2.0-beta.2",
+    plugin_version = "0.2.0-beta.3",
     plugin_description = "一个基于 LSE 的插件更新检查工具 / A plugin update checker based on LSE.",
     plugin_github_link = "https://github.com/MengHanLOVE1027/lse-easycheckupdate",
     plugin_minebbs_link = "https://www.minebbs.com/resources/easycheckupdate-ecu-lse.15501/",
@@ -725,7 +725,157 @@ function checkPluginUpdate(pluginName, currentVersion, autoUpdate = false, plugi
 }
 
 /**
+ * 确保目录存在，不存在则创建
+ * @param {String} dir 目录路径
+ */
+function ensureDir(dir) {
+    if (!File.exists(dir)) {
+        File.createDir(dir);
+    }
+}
+
+/**
+ * 递归删除目录及其所有内容
+ * @param {String} dirPath 目录路径
+ */
+function removeDir(dirPath) {
+    if (!File.exists(dirPath)) return;
+    try {
+        const entries = File.getFilesList(dirPath);
+        for (const entry of entries) {
+            const fullPath = `${dirPath}/${entry}`;
+            // 尝试作为文件删除，如果失败则作为目录递归删除
+            if (File.exists(fullPath)) {
+                try {
+                    File.delete(fullPath);
+                } catch (e) {
+                    // 可能是目录，递归删除
+                    removeDir(fullPath);
+                }
+            }
+        }
+        // 删除空目录自身
+        try { File.delete(dirPath); } catch (e) { /* 忽略 */ }
+    } catch (e) {
+        pluginPrint(`清理目录 ${dirPath} 时出错: ${e.message}`, "WARNING");
+    }
+}
+
+/**
+ * 解压 ZIP 文件到目标目录
+ * 依次尝试 tar → powershell Expand-Archive
+ * @param {String} zipPath ZIP文件路径
+ * @param {String} destDir 解压目标目录
+ * @param {Function} onComplete 完成回调(err)
+ */
+function extractZip(zipPath, destDir, onComplete) {
+    ensureDir(destDir);
+
+    // 尝试 tar（Windows 10+ 和 Linux 均支持）
+    const tarCmd = `tar -xf "${zipPath}" -C "${destDir}"`;
+    system.cmd(tarCmd, (exitCode, output) => {
+        if (exitCode === 0) {
+            pluginPrint(`已使用 tar 解压完成`, "INFO");
+            onComplete(null);
+            return;
+        }
+
+        // tar 失败，尝试 PowerShell
+        pluginPrint(`tar 解压失败(exit=${exitCode})，尝试 PowerShell...`, "INFO");
+        const psCmd = `powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${destDir}' -Force"`;
+        system.cmd(psCmd, (exitCode2, output2) => {
+            if (exitCode2 === 0) {
+                pluginPrint(`已使用 PowerShell 解压完成`, "INFO");
+                onComplete(null);
+            } else {
+                pluginPrint(`PowerShell 解压也失败(exit=${exitCode2}): ${output2}`, "ERROR");
+                onComplete(`解压失败: tar 和 PowerShell 均无法解压`);
+            }
+        });
+    });
+}
+
+/**
+ * 将解压后的文件安装到插件目录
+ * @param {String} extractDir 解压根目录
+ * @param {String} targetPluginDir 目标插件目录
+ * @param {String} pluginName 插件名称
+ */
+function installFromExtract(extractDir, targetPluginDir, pluginName) {
+    // 查找源根目录：若解压后只有一个子目录，以该子目录为源根
+    let sourceRoot = extractDir;
+    try {
+        const entries = File.getFilesList(extractDir);
+        const topDirs = [];
+        const topFiles = [];
+        for (const entry of entries) {
+            const fullPath = `${extractDir}/${entry}`;
+            if (File.exists(fullPath)) {
+                // 通过是否有扩展名简单区分文件和目录
+                if (entry.includes('.')) {
+                    topFiles.push(entry);
+                } else {
+                    topDirs.push(entry);
+                }
+            }
+        }
+        if (topDirs.length === 1 && topFiles.length <= 1) {
+            // 典型 GitHub Release ZIP 结构：外层一个文件夹
+            sourceRoot = `${extractDir}/${topDirs[0]}`;
+            pluginPrint(`检测到压缩包根目录: ${topDirs[0]}`, "INFO");
+        }
+    } catch (e) {
+        pluginPrint(`扫描解压目录时出错: ${e.message}`, "WARNING");
+    }
+
+    // 确保目标插件目录存在
+    ensureDir(targetPluginDir);
+
+    // 复制所有文件
+    try {
+        const sourceFiles = File.getFilesList(sourceRoot);
+        let copiedCount = 0;
+        for (const fileName of sourceFiles) {
+            const srcPath = `${sourceRoot}/${fileName}`;
+            const dstPath = `${targetPluginDir}/${fileName}`;
+            try {
+                if (File.exists(dstPath)) {
+                    // 如果是目录，跳过（LSE File API 不支持目录级操作）
+                    // 先尝试删除再复制
+                    try { File.delete(dstPath); } catch (e) { /* 可能为目录 */ }
+                }
+                File.copy(srcPath, dstPath);
+                copiedCount++;
+                pluginPrint(`  复制: ${fileName}`, "INFO");
+            } catch (copyErr) {
+                // 可能是子目录，尝试递归复制
+                if (File.exists(srcPath)) {
+                    try {
+                        const subFiles = File.getFilesList(srcPath);
+                        ensureDir(dstPath);
+                        for (const subFile of subFiles) {
+                            const subSrc = `${srcPath}/${subFile}`;
+                            const subDst = `${dstPath}/${subFile}`;
+                            try {
+                                if (File.exists(subDst)) { try { File.delete(subDst); } catch (e) { } }
+                                File.copy(subSrc, subDst);
+                                copiedCount++;
+                                pluginPrint(`  复制: ${fileName}/${subFile}`, "INFO");
+                            } catch (e2) { /* 忽略深层错误 */ }
+                        }
+                    } catch (e2) { /* 忽略无法处理的条目 */ }
+                }
+            }
+        }
+        pluginPrint(`已安装 ${copiedCount} 个文件到 ${targetPluginDir}`, "SUCCESS");
+    } catch (e) {
+        pluginPrint(`复制文件时出错: ${e.message}`, "ERROR");
+    }
+}
+
+/**
  * 从指定URL下载并更新插件
+ * 支持 ZIP 包（自动解压安装）和单文件两种格式
  * @param {String} pluginName 插件名称
  * @param {String} version 要更新的版本号
  * @param {String} downloadUrl 下载链接
@@ -734,132 +884,172 @@ function downloadAndUpdatePlugin(pluginName, version, downloadUrl) {
     try {
         pluginPrint(`正在从 ${downloadUrl} 下载插件 ${pluginName} 版本 ${version}...`);
 
-        // 创建临时目录
-        const tempDir = `./plugins/_temp`;
-        if (!File.exists(tempDir)) {
-            File.createDir(tempDir);
-        }
+        const isZip = downloadUrl.toLowerCase().endsWith('.zip') ||
+            downloadUrl.toLowerCase().includes('.zip?');
 
-        // 从URL中提取文件名
-        let fileName = downloadUrl.split('/').pop();
-        if (!fileName.endsWith('.js')) {
-            fileName = `${pluginName}-${version}.js`;
-        }
+        // 临时目录和文件路径
+        const tempBaseDir = `./plugins/_temp`;
+        const tempWorkDir = `${tempBaseDir}/${pluginName}`;
+        const extractDir = `${tempWorkDir}/extract`;
+        const zipPath = `${tempWorkDir}/update.zip`;
 
-        // 下载文件
-        const tempFile = `${tempDir}/${fileName}`;
-        network.httpGet(downloadUrl, (status, response) => {
-            if (status !== 200) {
-                pluginPrint(`下载插件 ${pluginName} 失败，状态码: ${status}`, "ERROR");
-                return;
-            }
+        // 目标插件目录
+        const targetPluginDir = `./plugins/${pluginName}`;
 
-            try {
-                // 写入临时文件
-                File.writeTo(tempFile, response);
-                pluginPrint(`文件已下载到 ${tempFile}`);
+        if (isZip) {
+            // ── ZIP 流程 ──
+            ensureDir(tempBaseDir);
+            ensureDir(tempWorkDir);
 
-                // 查找插件文件路径
-                const pluginsDir = "./plugins";
-                let pluginFilePath;
-
-                // 查找匹配插件名称的.js文件
-                const files = File.getFilesList(pluginsDir);
-                pluginPrint(`正在查找插件 ${pluginName} 的文件...`, "INFO");
-
-                // 尝试多种匹配方式
-                for (const file of files) {
-                    // 方式1: 完全匹配（区分大小写）- 检查是否是插件目录
-                    if (file === pluginName) {
-                        // 检查该目录下是否有对应的.js文件
-                        const pluginDir = `${pluginsDir}/${file}`;
-                        const pluginFiles = File.getFilesList(pluginDir);
-                        for (const pluginFile of pluginFiles) {
-                            if (pluginFile === `${pluginName}.js` || pluginFile.toLowerCase() === `${pluginName.toLowerCase()}.js`) {
-                                pluginFilePath = `${pluginDir}/${pluginFile}`;
-                                pluginPrint(`找到插件文件: ${pluginFilePath}`, "INFO");
-                                break;
-                            }
-                        }
-                        if (pluginFilePath) break;
-                    }
-
-                    // 方式2: 不区分大小写匹配
-                    if (file.toLowerCase() === pluginName.toLowerCase()) {
-                        const pluginDir = `${pluginsDir}/${file}`;
-                        const pluginFiles = File.getFilesList(pluginDir);
-                        for (const pluginFile of pluginFiles) {
-                            if (pluginFile.toLowerCase() === `${pluginName.toLowerCase()}.js`) {
-                                pluginFilePath = `${pluginDir}/${pluginFile}`;
-                                pluginPrint(`找到插件文件: ${pluginFilePath}`, "INFO");
-                                break;
-                            }
-                        }
-                        if (pluginFilePath) break;
-                    }
-
-                    // 方式3: 包含插件名称
-                    if (file.toLowerCase().includes(pluginName.toLowerCase())) {
-                        const pluginDir = `${pluginsDir}/${file}`;
-                        const pluginFiles = File.getFilesList(pluginDir);
-                        for (const pluginFile of pluginFiles) {
-                            if (pluginFile.toLowerCase().includes(pluginName.toLowerCase())) {
-                                pluginFilePath = `${pluginDir}/${pluginFile}`;
-                                pluginPrint(`找到插件文件: ${pluginFilePath}`, "INFO");
-                                break;
-                            }
-                        }
-                        if (pluginFilePath) break;
-                    }
+            network.httpGet(downloadUrl, (status, response) => {
+                if (status !== 200) {
+                    pluginPrint(`下载插件 ${pluginName} 失败，状态码: ${status}`, "ERROR");
+                    return;
                 }
 
-                if (!pluginFilePath) {
-                    pluginPrint(`未找到插件 ${pluginName} 的文件，可用文件: ${files.join(', ')}`, "WARNING");
-                }
+                try {
+                    // 保存 ZIP 到临时文件
+                    File.writeTo(zipPath, response);
+                    pluginPrint(`ZIP 已下载到 ${zipPath}，正在解压...`);
 
-                if (pluginFilePath) {
-                    // 备份旧文件
-                    const backupPath = pluginFilePath + '.bak';
-                    try {
-                        File.copy(pluginFilePath, backupPath);
-                        pluginPrint(`已备份旧文件到 ${backupPath}`);
-                    } catch (backupError) {
-                        pluginPrint(`备份文件失败: ${backupError.message}`, "WARNING");
-                        // 继续执行更新流程，不因备份失败而中断
-                    }
+                    // 解压
+                    extractZip(zipPath, extractDir, (err) => {
+                        // 清理临时 ZIP 文件
+                        if (File.exists(zipPath)) {
+                            try { File.delete(zipPath); } catch (e) { }
+                        }
 
-                    // 替换文件
-                    if (File.exists(pluginFilePath)) {
-                        File.delete(pluginFilePath);
-                    }
-                    File.copy(tempFile, pluginFilePath);
-                    pluginPrint(`已更新插件文件: ${pluginFilePath}`);
+                        if (err) {
+                            pluginPrint(`插件 ${pluginName} ${err}`, "ERROR");
+                            // 清理
+                            removeDir(tempWorkDir);
+                            return;
+                        }
 
-                    // 清理临时文件
-                    if (File.exists(tempFile)) {
-                        File.delete(tempFile);
-                        pluginPrint(`已清理临时文件: ${tempFile}`);
-                    }
+                        // 安装文件
+                        installFromExtract(extractDir, targetPluginDir, pluginName);
 
-                    pluginPrint(`插件 ${pluginName} 已更新，正在重载插件...`, "INFO");
-
-                    // 自动重载插件
-                    setTimeout(() => {
+                        // 清理临时目录
+                        removeDir(tempWorkDir);
+                        // 如果 _temp 目录为空，也清理掉
                         try {
-                            mc.runcmdEx(`ll reload ${pluginName}`);
-                            pluginPrint(`插件 ${pluginName} 已重载`, "SUCCESS");
-                        } catch (error) {
-                            pluginPrint(`重载插件失败: ${error.message}`, "ERROR");
-                            pluginPrint(`请手动执行: ll reload ${pluginName}`, "WARNING");
-                        }
-                    }, 1000); // 延迟1秒后重载，确保文件操作完成
-                } else {
-                    pluginPrint(`无法找到插件 ${pluginName} 的文件路径`, "WARNING");
+                            const tempEntries = File.getFilesList(tempBaseDir);
+                            if (tempEntries.length === 0) {
+                                try { File.delete(tempBaseDir); } catch (e) { }
+                            }
+                        } catch (e) { }
+
+                        pluginPrint(`插件 ${pluginName} 已更新到 v${version}，正在重载插件...`, "INFO");
+
+                        // 重载插件
+                        setTimeout(() => {
+                            try {
+                                mc.runcmdEx(`ll reload ${pluginName}`);
+                                pluginPrint(`插件 ${pluginName} 已重载`, "SUCCESS");
+                            } catch (error) {
+                                pluginPrint(`重载插件失败: ${error.message}`, "ERROR");
+                                pluginPrint(`请手动执行: ll reload ${pluginName}`, "WARNING");
+                            }
+                        }, 1000);
+                    });
+                } catch (e) {
+                    pluginPrint(`更新插件 ${pluginName} 时出错: ${e.message}`, "ERROR");
+                    removeDir(tempWorkDir);
                 }
-            } catch (e) {
-                pluginPrint(`更新插件 ${pluginName} 时出错: ${e.message}`, "ERROR");
+            });
+        } else {
+            // ── 单文件流程（兼容旧格式） ──
+            const tempDir = tempBaseDir;
+            ensureDir(tempDir);
+
+            let fileName = downloadUrl.split('/').pop();
+            if (!fileName.endsWith('.js')) {
+                fileName = `${pluginName}-${version}.js`;
             }
-        });
+
+            const tempFile = `${tempDir}/${fileName}`;
+            network.httpGet(downloadUrl, (status, response) => {
+                if (status !== 200) {
+                    pluginPrint(`下载插件 ${pluginName} 失败，状态码: ${status}`, "ERROR");
+                    return;
+                }
+
+                try {
+                    File.writeTo(tempFile, response);
+                    pluginPrint(`文件已下载到 ${tempFile}`);
+
+                    // 查找插件文件路径
+                    const pluginsDir = "./plugins";
+                    let pluginFilePath;
+
+                    const files = File.getFilesList(pluginsDir);
+                    for (const file of files) {
+                        if (file === pluginName || file.toLowerCase() === pluginName.toLowerCase()) {
+                            const pluginDir = `${pluginsDir}/${file}`;
+                            const pluginFiles = File.getFilesList(pluginDir);
+                            for (const pluginFile of pluginFiles) {
+                                if (pluginFile === `${pluginName}.js` || pluginFile.toLowerCase() === `${pluginName.toLowerCase()}.js`) {
+                                    pluginFilePath = `${pluginDir}/${pluginFile}`;
+                                    break;
+                                }
+                            }
+                            if (pluginFilePath) break;
+                        }
+                        if (file.toLowerCase().includes(pluginName.toLowerCase())) {
+                            const pluginDir = `${pluginsDir}/${file}`;
+                            const pluginFiles = File.getFilesList(pluginDir);
+                            for (const pluginFile of pluginFiles) {
+                                if (pluginFile.toLowerCase().includes(pluginName.toLowerCase())) {
+                                    pluginFilePath = `${pluginDir}/${pluginFile}`;
+                                    break;
+                                }
+                            }
+                            if (pluginFilePath) break;
+                        }
+                    }
+
+                    if (pluginFilePath) {
+                        // 备份旧文件
+                        const backupPath = pluginFilePath + '.bak';
+                        try {
+                            File.copy(pluginFilePath, backupPath);
+                            pluginPrint(`已备份旧文件到 ${backupPath}`);
+                        } catch (backupError) {
+                            pluginPrint(`备份文件失败: ${backupError.message}`, "WARNING");
+                        }
+
+                        // 替换文件
+                        if (File.exists(pluginFilePath)) {
+                            File.delete(pluginFilePath);
+                        }
+                        File.copy(tempFile, pluginFilePath);
+                        pluginPrint(`已更新插件文件: ${pluginFilePath}`);
+
+                        // 清理临时文件
+                        if (File.exists(tempFile)) {
+                            File.delete(tempFile);
+                            pluginPrint(`已清理临时文件: ${tempFile}`);
+                        }
+
+                        pluginPrint(`插件 ${pluginName} 已更新，正在重载插件...`, "INFO");
+
+                        setTimeout(() => {
+                            try {
+                                mc.runcmdEx(`ll reload ${pluginName}`);
+                                pluginPrint(`插件 ${pluginName} 已重载`, "SUCCESS");
+                            } catch (error) {
+                                pluginPrint(`重载插件失败: ${error.message}`, "ERROR");
+                                pluginPrint(`请手动执行: ll reload ${pluginName}`, "WARNING");
+                            }
+                        }, 1000);
+                    } else {
+                        pluginPrint(`无法找到插件 ${pluginName} 的文件路径`, "WARNING");
+                    }
+                } catch (e) {
+                    pluginPrint(`更新插件 ${pluginName} 时出错: ${e.message}`, "ERROR");
+                }
+            });
+        }
     } catch (e) {
         pluginPrint(`从URL下载插件 ${pluginName} 时出错: ${e.message}`, "ERROR");
     }

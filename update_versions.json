@@ -1,20 +1,26 @@
 {
-    "latest_version": "0.2.0-beta.2",
+    "latest_version": "0.2.0-beta.3",
     "versions": {
+        "0.2.0-beta.3": {
+            "download_url": "https://github.com/MengHanLOVE1027/lse-easycheckupdate/releases/download/v0.2.0-beta.3/EasyCheckUpdate-v0.2.0-beta.3.zip",
+            "update_content": "feat: 更新版本号至 0.2.0-beta.3，支持 GitHub Release ZIP 下载与自动解压安装",
+            "author": "梦涵LOVE",
+            "update_time": "2026-08-09 22:50:00"
+        },
         "0.2.0-beta.2": {
-            "download_url": "https://raw.githubusercontent.com/MengHanLOVE1027/lse-easycheckupdate/refs/heads/main/EasyCheckUpdate.js",
+            "download_url": "https://github.com/MengHanLOVE1027/lse-easycheckupdate/releases/download/v0.2.0-beta.2/EasyCheckUpdate-v0.2.0-beta.2.zip",
             "update_content": "feat: 更新版本号至 0.2.0-beta.2，优化 info 命令支持可选版本号",
             "author": "梦涵LOVE",
             "update_time": "2026-08-09 22:30:00"
         },
         "0.2.0-beta.1": {
-            "download_url": "https://raw.githubusercontent.com/MengHanLOVE1027/lse-easycheckupdate/refs/heads/main/EasyCheckUpdate.js",
+            "download_url": "https://github.com/MengHanLOVE1027/lse-easycheckupdate/releases/download/v0.2.0-beta.1/EasyCheckUpdate-v0.2.0-beta.1.zip",
             "update_content": "feat: 更新版本号至 0.2.0-beta.1，修改相关文件以反映新版本信息",
             "author": "梦涵LOVE",
             "update_time": "2026-08-09 21:50:00"
         },
         "0.1.0": {
-            "download_url": "https://raw.githubusercontent.com/MengHanLOVE1027/lse-easycheckupdate/refs/heads/main/EasyCheckUpdate.js",
+            "download_url": "https://github.com/MengHanLOVE1027/lse-easycheckupdate/releases/download/v0.1.0/EasyCheckUpdate-v0.1.0.zip",
             "update_content": "更新版本号为 v0.1.0",
             "author": "梦涵LOVE",
             "update_time": "2026-03-07 00:22:00"

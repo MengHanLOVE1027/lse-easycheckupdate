@@ -166,10 +166,7 @@ jobs:
           plugins/
           └── EasyCheckUpdate/
               ├── EasyCheckUpdate.js
-              ├── manifest.json
-              ├── tooth.json
-              ├── update_versions.json
-              └── LICENSE
+              └── manifest.json
           \`\`\`
           BODYEOF
 
