@@ -3,7 +3,7 @@
 // 声明常量
 const plugin_name = "EasyCheckUpdate",
     plugin_name_smallest = "easycheckupdate",
-    plugin_version = "0.2.0-beta.1",
+    plugin_version = "0.2.0-beta.2",
     plugin_description = "一个基于 LSE 的插件更新检查工具 / A plugin update checker based on LSE.",
     plugin_github_link = "https://github.com/MengHanLOVE1027/lse-easycheckupdate",
     plugin_minebbs_link = "https://www.minebbs.com/resources/easycheckupdate-ecu-lse.15501/",
@@ -667,9 +667,6 @@ function checkPluginUpdate(pluginName, currentVersion, autoUpdate = false, plugi
                                 }
                             }
 
-                            // 打印版本列表
-                            printVersionList(pluginName, versions, currentVersion, candidateVer, userIsPreRelease);
-
                             if (!candidateVer) {
                                 pluginPrint(`插件 ${pluginName} 已是最新版本: ${currentVersion}`);
                                 return;
@@ -949,6 +946,9 @@ function RegisterCmd() {
     checkupdate_cmd.mandatory("action", ParamType.Enum, "InfoAction", 1); // 查看版本详情参数
     checkupdate_cmd.optional("plugin", ParamType.RawText); // 可选插件名称参数
     checkupdate_cmd.optional("version", ParamType.RawText); // 可选版本号参数
+    // info 子命令专用参数（独立于上面的可选 plugin/version）
+    checkupdate_cmd.mandatory("infoPlugin", ParamType.RawText);
+    checkupdate_cmd.optional("infoVersion", ParamType.RawText);
 
     // 设置overload
     checkupdate_cmd.overload([]); // 无参数，显示帮助
@@ -956,7 +956,8 @@ function RegisterCmd() {
     checkupdate_cmd.overload(["AllAction"]); // 检查所有插件
     checkupdate_cmd.overload(["UpdateAction", "plugin"]); // 更新指定插件
     checkupdate_cmd.overload(["UpdateAction", "plugin", "version"]); // 更新到指定版本
-    checkupdate_cmd.overload(["InfoAction", "plugin", "version"]); // 查看指定版本详情
+    checkupdate_cmd.overload(["InfoAction", "infoPlugin"]); // 查看插件版本列表
+    checkupdate_cmd.overload(["InfoAction", "infoPlugin", "infoVersion"]); // 查看指定版本详情
     checkupdate_cmd.overload(["plugin"]); // 检查指定插件
 
     // 指令回调处理
@@ -976,9 +977,9 @@ function RegisterCmd() {
             // 无参数，显示帮助信息
             if (origin.typeName == "Player") {
                 const pl = mc.getPlayer(origin.player.realName);
-                pl.tell("§a[EasyCheckUpdate] §f命令帮助:\n/checkupdate - 显示此帮助信息\n/checkupdate all - 检查所有插件的更新\n/checkupdate reload - 重载插件\n/checkupdate <插件名称> - 检查指定插件的更新\n/checkupdate update <插件名称> [版本号] - 更新指定插件\n/checkupdate info <插件名称> <版本号> - 查看版本详情");
+                pl.tell("§a[EasyCheckUpdate] §f命令帮助:\n/checkupdate - 显示此帮助信息\n/checkupdate all - 检查所有插件的更新\n/checkupdate reload - 重载插件\n/checkupdate <插件名称> - 检查指定插件的更新\n/checkupdate update <插件名称> [版本号] - 更新指定插件\n/checkupdate info <插件名称> [版本号] - 查看版本列表或版本详情");
             } else {
-                pluginPrint("命令帮助:\n/checkupdate - 显示此帮助信息\n/checkupdate all - 检查所有插件的更新\n/checkupdate reload - 重载插件\n/checkupdate <插件名称> - 检查指定插件的更新\n/checkupdate update <插件名称> [版本号] - 更新指定插件\n/checkupdate info <插件名称> <版本号> - 查看版本详情");
+                pluginPrint("命令帮助:\n/checkupdate - 显示此帮助信息\n/checkupdate all - 检查所有插件的更新\n/checkupdate reload - 重载插件\n/checkupdate <插件名称> - 检查指定插件的更新\n/checkupdate update <插件名称> [版本号] - 更新指定插件\n/checkupdate info <插件名称> [版本号] - 查看版本列表或版本详情");
             }
             return output.success();
         }
@@ -1025,34 +1026,51 @@ function RegisterCmd() {
             }
             return output.success();
         } else if (results.action === "info") {
-            // 查看指定插件指定版本的详细信息
-            const pluginName = results.plugin;
-            const versionName = results.version;
-            if (!pluginName || !versionName) {
+            // 查看插件版本信息：info <插件名> [版本号]
+            const pluginName = results.infoPlugin;
+            const versionName = results.infoVersion || null;
+            if (!pluginName) {
                 if (origin.typeName == "Player") {
                     const pl = mc.getPlayer(origin.player.realName);
-                    pl.tell("§c用法: /checkupdate info <插件名称> <版本号>");
+                    pl.tell("§c用法: /checkupdate info <插件名称> [版本号]");
                 } else {
-                    pluginPrint("用法: /checkupdate info <插件名称> <版本号>");
+                    pluginPrint("用法: /checkupdate info <插件名称> [版本号]");
                 }
                 return output.success();
             }
 
             const pluginInfo = getPluginUpdateInfo(pluginName);
-            if (pluginInfo && pluginInfo.update_url) {
-                // 异步拉取版本信息
-                network.httpGet(pluginInfo.update_url, (status, response) => {
-                    if (status !== 200) {
-                        pluginPrint(`获取插件 ${pluginName} 的更新信息失败，状态码: ${status}`, "WARNING");
+            if (!pluginInfo || !pluginInfo.update_url) {
+                if (origin.typeName == "Player") {
+                    const pl = mc.getPlayer(origin.player.realName);
+                    pl.tell(`§c未找到插件: ${pluginName}`);
+                } else {
+                    pluginPrint(`未找到插件: ${pluginName}`, "ERROR");
+                }
+                return output.success();
+            }
+
+            // 异步拉取版本信息
+            network.httpGet(pluginInfo.update_url, (status, response) => {
+                if (status !== 200) {
+                    pluginPrint(`获取插件 ${pluginName} 的更新信息失败，状态码: ${status}`, "WARNING");
+                    return;
+                }
+                try {
+                    const updateData = JSON.parse(response);
+                    if (!updateData.versions || typeof updateData.versions !== 'object') {
+                        pluginPrint(`插件 ${pluginName} 的更新信息格式不正确`, "WARNING");
                         return;
                     }
-                    try {
-                        const updateData = JSON.parse(response);
-                        if (!updateData.versions || !updateData.versions[versionName]) {
+                    const versions = updateData.versions;
+
+                    if (versionName) {
+                        // 查看指定版本详情
+                        const verInfo = versions[versionName];
+                        if (!verInfo) {
                             pluginPrint(`插件 ${pluginName} 未找到版本 v${versionName}`, "WARNING");
                             return;
                         }
-                        const verInfo = updateData.versions[versionName];
                         const tag = isPreRelease(versionName) ? "测试版" : "正式版";
                         pluginPrint(`插件 ${pluginName} 版本 v${versionName} 的详细信息:`);
                         pluginPrint(`  作者: ${verInfo.author || "未知作者"}`);
@@ -1061,20 +1079,22 @@ function RegisterCmd() {
                         pluginPrint(`  更新内容:`);
                         pluginPrint(`    ${verInfo.update_content || "无更新内容"}`);
                         pluginPrint(`  下载地址: ${verInfo.download_url || "无"}`);
-                    } catch (e) {
-                        pluginPrint(`解析版本信息时出错: ${e.message}`, "WARNING");
+                    } else {
+                        // 显示版本列表
+                        const currentVersion = pluginInfo.plugin_version || "unknown";
+                        const userIsPre = isPreRelease(currentVersion);
+                        printVersionList(pluginName, versions, currentVersion, null, userIsPre);
                     }
-                });
-                if (origin.typeName == "Player") {
-                    const pl = mc.getPlayer(origin.player.realName);
-                    pl.tell(`§a正在查询插件 ${pluginName} 版本 v${versionName} 的详细信息，请查看控制台`);
+                } catch (e) {
+                    pluginPrint(`解析版本信息时出错: ${e.message}`, "WARNING");
                 }
-            } else {
-                if (origin.typeName == "Player") {
-                    const pl = mc.getPlayer(origin.player.realName);
-                    pl.tell(`§c未找到插件: ${pluginName}`);
+            });
+            if (origin.typeName == "Player") {
+                const pl = mc.getPlayer(origin.player.realName);
+                if (versionName) {
+                    pl.tell(`§a正在查询插件 ${pluginName} 版本 v${versionName} 的详细信息，请查看控制台`);
                 } else {
-                    pluginPrint(`未找到插件: ${pluginName}`, "ERROR");
+                    pl.tell(`§a正在查询插件 ${pluginName} 的版本列表，请查看控制台`);
                 }
             }
             return output.success();
@@ -1111,9 +1131,9 @@ function RegisterCmd() {
             // 显示帮助信息
             if (origin.typeName == "Player") {
                 const pl = mc.getPlayer(origin.player.realName);
-                pl.tell("§a[EasyCheckUpdate] §f命令帮助:\n/checkupdate - 显示此帮助信息\n/checkupdate all - 检查所有插件的更新\n/checkupdate reload - 重载插件\n/checkupdate <插件名称> - 检查指定插件的更新\n/checkupdate update <插件名称> [版本号] - 更新指定插件\n/checkupdate info <插件名称> <版本号> - 查看版本详情");
+                pl.tell("§a[EasyCheckUpdate] §f命令帮助:\n/checkupdate - 显示此帮助信息\n/checkupdate all - 检查所有插件的更新\n/checkupdate reload - 重载插件\n/checkupdate <插件名称> - 检查指定插件的更新\n/checkupdate update <插件名称> [版本号] - 更新指定插件\n/checkupdate info <插件名称> [版本号] - 查看版本列表或版本详情");
             } else {
-                pluginPrint("命令帮助:\n/checkupdate - 显示此帮助信息\n/checkupdate all - 检查所有插件的更新\n/checkupdate reload - 重载插件\n/checkupdate <插件名称> - 检查指定插件的更新\n/checkupdate update <插件名称> [版本号] - 更新指定插件\n/checkupdate info <插件名称> <版本号> - 查看版本详情");
+                pluginPrint("命令帮助:\n/checkupdate - 显示此帮助信息\n/checkupdate all - 检查所有插件的更新\n/checkupdate reload - 重载插件\n/checkupdate <插件名称> - 检查指定插件的更新\n/checkupdate update <插件名称> [版本号] - 更新指定插件\n/checkupdate info <插件名称> [版本号] - 查看版本列表或版本详情");
             }
             return output.success();
         }
