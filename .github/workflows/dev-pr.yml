@@ -69,7 +69,7 @@ jobs:
           esac
 
           BODY=$(cat <<EOF
-          ## ${TYPE}: EasyBackuper v${VERSION}
+          ## ${TYPE}: EasyCheckUpdate v${VERSION}
 
           ### 📝 更新内容
           ${COMMITS}
