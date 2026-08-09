@@ -3,7 +3,7 @@
 // 声明常量
 const plugin_name = "EasyCheckUpdate",
     plugin_name_smallest = "easycheckupdate",
-    plugin_version = "v0.1.0",
+    plugin_version = "0.2.0-beta.1",
     plugin_description = "一个基于 LSE 的插件更新检查工具 / A plugin update checker based on LSE.",
     plugin_github_link = "https://github.com/MengHanLOVE1027/lse-easycheckupdate",
     plugin_minebbs_link = "https://www.minebbs.com/resources/easycheckupdate-ecu-lse.15501/",
@@ -434,7 +434,7 @@ function Loadplugin() {
 ██╔══╝  ██╔══██║╚════██║  ╚██╔╝  ██║   ██║██╔═══╝ ██║  ██║██╔══██║   ██║   ██╔══╝  
 ███████╗██║  ██║███████║   ██║   ╚██████╔╝██║     ██████╔╝██║  ██║   ██║   ███████╗
 ╚══════╝╚═╝  ╚═╝╚══════╝   ╚═╝    ╚═════╝ ╚═╝     ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝`)
-    pluginPrint(`作者：梦涵LOVE          版本：${plugin_version}`)
+    pluginPrint(`作者：梦涵LOVE          版本：v${plugin_version}`)
     pluginPrint("================================================================================")
     pluginPrint(`${plugin_name} - ${plugin_description}`)
     pluginPrint("感谢您使用Easy系列插件！")
@@ -442,7 +442,7 @@ function Loadplugin() {
     pluginPrint(`GitHub 仓库：${plugin_github_link}`)
     pluginPrint(`插件MineBBS资源帖：${plugin_minebbs_link}`)
     pluginPrint("Easy系列插件交流群：1083195477")
-    pluginPrint(`作者：梦涵LOVE | 版本：${plugin_version}`)
+    pluginPrint(`作者：梦涵LOVE | 版本：v${plugin_version}`)
 
     let bstatsConf = pluginConfig && pluginConfig.Bstats ? pluginConfig.Bstats : {}; // 获取BStats配置
     pluginPrint("BStats状态：" + (bstatsConf.EnableModule ? "已启用" : "已禁用"))
