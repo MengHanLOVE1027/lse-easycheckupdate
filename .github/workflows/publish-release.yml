@@ -14,56 +14,9 @@ permissions:
   contents: write
 
 jobs:
-  # ──────────────────────────────────────────────────
-  # 跨平台编译 mhlove-truncate（PyInstaller 不支持交叉编译）
-  # ──────────────────────────────────────────────────
-  build-truncate:
-    name: Build truncate (${{ matrix.label }})
-    timeout-minutes: 15
-    strategy:
-      matrix:
-        include:
-          - os: windows-latest
-            label: Windows
-            artifact: mhlove-truncate.exe
-          - os: ubuntu-latest
-            label: Linux
-            artifact: mhlove-truncate
-    runs-on: ${{ matrix.os }}
-
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: Install PyInstaller
-        run: pip install pyinstaller Pillow
-
-      - name: Build ${{ matrix.artifact }}
-        working-directory: truncate-python
-        shell: bash
-        run: |
-          pyinstaller -F -c -i 梦涵LOVE.ico -n mhlove-truncate main.py
-          echo "Built: ${{ matrix.artifact }}"
-          ls -la dist/
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: truncate-${{ matrix.label }}
-          path: truncate-python/dist/${{ matrix.artifact }}
-
-  # ──────────────────────────────────────────────────
-  # 发布
-  # ──────────────────────────────────────────────────
   release:
     name: Build & Release
-    needs: build-truncate
-    timeout-minutes: 15
+    timeout-minutes: 10
     runs-on: ubuntu-latest
 
     steps:
@@ -117,21 +70,6 @@ jobs:
           git push origin "$TAG"
           echo "Created and pushed tag: $TAG"
 
-      # ── 下载编译产物 ──
-      - name: Download truncate (Windows)
-        if: steps.check.outputs.exists == 'false' || github.event_name == 'workflow_dispatch'
-        uses: actions/download-artifact@v4
-        with:
-          name: truncate-Windows
-          path: truncate-bin/
-
-      - name: Download truncate (Linux)
-        if: steps.check.outputs.exists == 'false' || github.event_name == 'workflow_dispatch'
-        uses: actions/download-artifact@v4
-        with:
-          name: truncate-Linux
-          path: truncate-bin/
-
       # ── 构建发布包 ──
       - name: Build release package
         if: steps.check.outputs.exists == 'false' || github.event_name == 'workflow_dispatch'
@@ -139,20 +77,17 @@ jobs:
         shell: bash
         run: |
           VERSION="${{ steps.version.outputs.version }}"
-          ZIP_NAME="EasyBackuper-v${VERSION}.zip"
-          PACKAGE_DIR="EasyBackuper"
+          ZIP_NAME="EasyCheckUpdate-v${VERSION}.zip"
+          PACKAGE_DIR="EasyCheckUpdate"
 
           mkdir -p "${PACKAGE_DIR}"
 
           # 复制插件文件
-          cp EasyBackuper.js   "${PACKAGE_DIR}/"
-          cp manifest.json     "${PACKAGE_DIR}/"
-          cp 7za.exe           "${PACKAGE_DIR}/"
-
-          # 复制跨平台编译产物
-          cp truncate-bin/mhlove-truncate.exe  "${PACKAGE_DIR}/"
-          cp truncate-bin/mhlove-truncate      "${PACKAGE_DIR}/"
-          chmod +x "${PACKAGE_DIR}/mhlove-truncate"
+          cp EasyCheckUpdate.js   "${PACKAGE_DIR}/"
+          cp manifest.json        "${PACKAGE_DIR}/"
+          cp tooth.json           "${PACKAGE_DIR}/"
+          cp update_versions.json "${PACKAGE_DIR}/"
+          cp LICENSE              "${PACKAGE_DIR}/"
 
           # 打包
           zip -r "${ZIP_NAME}" "${PACKAGE_DIR}"
@@ -196,7 +131,7 @@ jobs:
 
             CHANGELOG_LINK="https://github.com/${{ github.repository }}/compare/${PREV_TAG}...${TAG}"
           else
-            DETAILS="- 🎉 EasyBackuper v${VERSION} 首次发布"
+            DETAILS="- 🎉 EasyCheckUpdate v${VERSION} 首次发布"
             AUTHORS=""
             CHANGELOG_LINK=""
           fi
@@ -205,13 +140,13 @@ jobs:
           AUTHORS="${AUTHORS:-（暂无）}"
 
           cat > /tmp/release_body.md <<BODYEOF
-          ## ${TYPE}: EasyBackuper v${VERSION}
+          ## ${TYPE}: EasyCheckUpdate v${VERSION}
 
           ### 📦 下载 · Downloads
 
           | 文件 | 说明 |
           |------|------|
-          | \`EasyBackuper-v${VERSION}.zip\` | 完整插件包（Windows + Linux） |
+          | \`EasyCheckUpdate-v${VERSION}.zip\` | 完整插件包 |
 
           > 解压后放入 \`plugins/\` 目录即可使用。
 
@@ -225,19 +160,19 @@ jobs:
 
           ### 🔧 安装 · Installation
 
-          1. 下载 \`EasyBackuper-v${VERSION}.zip\`
+          1. 下载 \`EasyCheckUpdate-v${VERSION}.zip\`
           2. 解压到服务器的 \`plugins/\` 目录
-          3. 重启服务器或使用 \`ll reload EasyBackuper\` 重载插件
+          3. 重启服务器或使用 \`ll reload EasyCheckUpdate\` 重载插件
 
           安装后的目录结构：
           \`\`\`
           plugins/
-          └── EasyBackuper/
-              ├── EasyBackuper.js
+          └── EasyCheckUpdate/
+              ├── EasyCheckUpdate.js
               ├── manifest.json
-              ├── 7za.exe
-              ├── mhlove-truncate.exe   # Windows
-              └── mhlove-truncate       # Linux
+              ├── tooth.json
+              ├── update_versions.json
+              └── LICENSE
           \`\`\`
           BODYEOF
 
