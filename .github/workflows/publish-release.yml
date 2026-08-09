@@ -85,9 +85,6 @@ jobs:
           # 复制插件文件
           cp EasyCheckUpdate.js   "${PACKAGE_DIR}/"
           cp manifest.json        "${PACKAGE_DIR}/"
-          cp tooth.json           "${PACKAGE_DIR}/"
-          cp update_versions.json "${PACKAGE_DIR}/"
-          cp LICENSE              "${PACKAGE_DIR}/"
 
           # 打包
           zip -r "${ZIP_NAME}" "${PACKAGE_DIR}"

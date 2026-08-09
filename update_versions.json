@@ -1,6 +1,12 @@
 {
-    "latest_version": "0.2.0-beta.1",
+    "latest_version": "0.2.0-beta.2",
     "versions": {
+        "0.2.0-beta.2": {
+            "download_url": "https://raw.githubusercontent.com/MengHanLOVE1027/lse-easycheckupdate/refs/heads/main/EasyCheckUpdate.js",
+            "update_content": "feat: 更新版本号至 0.2.0-beta.2，优化 info 命令支持可选版本号",
+            "author": "梦涵LOVE",
+            "update_time": "2026-08-09 22:30:00"
+        },
         "0.2.0-beta.1": {
             "download_url": "https://raw.githubusercontent.com/MengHanLOVE1027/lse-easycheckupdate/refs/heads/main/EasyCheckUpdate.js",
             "update_content": "feat: 更新版本号至 0.2.0-beta.1，修改相关文件以反映新版本信息",
