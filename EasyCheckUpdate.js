@@ -514,63 +514,62 @@ function compareVersions(version1, version2) {
 }
 
 /**
- * 检查指定插件的更新
+ * 获取插件的更新信息（通过导入CheckUpdate函数）
  * @param {String} pluginName 插件名称
- * @param {String} currentVersion 当前版本
- * @param {Boolean} autoUpdate 是否自动更新插件
+ * @returns {Object|null} 返回插件导出的更新信息对象，失败返回null
  */
-function checkPluginUpdate(pluginName, currentVersion, autoUpdate = false) {
-    pluginPrint(`正在检查插件 ${pluginName} 的更新...`);
-
-    // 检查插件是否有update_url字段
-    // 通过ll.imports导入插件导出的CheckUpdate函数
-    let pluginObj = null;
-    // 检查插件是否导出了CheckUpdate函数
-    let hasExported = false;
-
-    // 先检查"ecu"命名空间
+function getPluginUpdateInfo(pluginName) {
+    // 先尝试"ecu"命名空间
     if (ll.hasExported) {
         try {
-            hasExported = ll.hasExported("ecu", pluginName);
-        } catch (e) {
-            hasExported = false;
-        }
-    }
-
-    if (hasExported) {
-        try {
-            const checkUpdateFunc = ll.imports("ecu", pluginName);
-            if (checkUpdateFunc && typeof checkUpdateFunc === "function") {
-                pluginObj = checkUpdateFunc();
+            if (ll.hasExported("ecu", pluginName)) {
+                const checkUpdateFunc = ll.imports("ecu", pluginName);
+                if (checkUpdateFunc && typeof checkUpdateFunc === "function") {
+                    return checkUpdateFunc();
+                }
             }
         } catch (e) {
-            // 静默失败，不输出错误信息
+            // 静默失败
         }
     }
 
     // 如果从"ecu"命名空间导入失败，尝试直接从插件导入
-    if (!pluginObj) {
-        // 先检查插件是否导出了CheckUpdate函数
-        hasExported = false;
-        if (ll.hasExported) {
-            try {
-                hasExported = ll.hasExported(pluginName, "CheckUpdate");
-            } catch (e) {
-                hasExported = false;
-            }
-        }
-
-        if (hasExported) {
-            try {
+    if (ll.hasExported) {
+        try {
+            if (ll.hasExported(pluginName, "CheckUpdate")) {
                 const checkUpdateFunc = ll.imports(pluginName, "CheckUpdate");
                 if (checkUpdateFunc && typeof checkUpdateFunc === "function") {
-                    pluginObj = checkUpdateFunc();
+                    return checkUpdateFunc();
                 }
-            } catch (e) {
-                // 静默失败，不输出错误信息
             }
+        } catch (e) {
+            // 静默失败
         }
     }
+
+    return null;
+}
+
+/**
+ * 检查指定插件的更新
+ * @param {String} pluginName 插件名称
+ * @param {String} currentVersion 当前版本
+ * @param {Boolean} autoUpdate 是否自动更新插件（默认false）
+ * @param {Object|null} pluginObj 预导入的插件信息对象，为null时内部调用getPluginUpdateInfo获取
+ * @param {Function|null} onComplete 异步HTTP请求完成后的回调
+ */
+function checkPluginUpdate(pluginName, currentVersion, autoUpdate = false, pluginObj = null, onComplete = null) {
+    pluginPrint(`正在检查插件 ${pluginName} 的更新...`);
+
+    // 如果未传入预导入的pluginObj，则通过getPluginUpdateInfo获取
+    if (pluginObj === null) {
+        pluginObj = getPluginUpdateInfo(pluginName);
+    }
+
+    // 完成信号：异步操作结束后统一调用
+    const signalComplete = () => {
+        if (onComplete) onComplete();
+    };
 
     if (pluginObj && pluginObj.update_url) {
         try {
@@ -580,12 +579,12 @@ function checkPluginUpdate(pluginName, currentVersion, autoUpdate = false) {
 
             // 下载更新信息
             network.httpGet(updateUrl, (status, response) => {
-                if (status !== 200) {
-                    pluginPrint(`从 ${updateUrl} 获取插件 ${pluginName} 的更新信息时出错，状态码: ${status}`, "WARNING");
-                    return;
-                }
-
                 try {
+                    if (status !== 200) {
+                        pluginPrint(`从 ${updateUrl} 获取插件 ${pluginName} 的更新信息时出错，状态码: ${status}`, "WARNING");
+                        return;
+                    }
+
                     const updateData = JSON.parse(response);
                     let latestVersion, downloadUrl, updateContent, author, updateTime;
 
@@ -651,13 +650,17 @@ function checkPluginUpdate(pluginName, currentVersion, autoUpdate = false) {
                     }
                 } catch (e) {
                     pluginPrint(`解析插件 ${pluginName} 的更新信息时出错: ${e.message}`, "WARNING");
+                } finally {
+                    signalComplete();
                 }
             });
         } catch (e) {
             pluginPrint(`检查插件 ${pluginName} 的更新时出错: ${e.message}`, "ERROR");
+            signalComplete();
         }
     } else {
         pluginPrint(`未找到插件 ${pluginName} 的 update_url 字段，无法检查更新`, "WARNING");
+        signalComplete();
     }
 }
 
@@ -833,53 +836,31 @@ function checkAllPluginsUpdate() {
 
     // 获取所有已加载的插件
     const plugins = ll.listPlugins();
+    let pending = 0;
     let checkedCount = 0;
-    let completedCount = 0;
-    const totalPlugins = plugins.length;
 
     for (const pluginName of plugins) {
-        // 直接获取插件信息，无需重载
-        let pluginInfo = null;
-
-        // 先检查"ecu"命名空间
-        if (ll.hasExported && ll.hasExported("ecu", pluginName)) {
-            try {
-                const checkUpdateFunc = ll.imports("ecu", pluginName);
-                if (checkUpdateFunc && typeof checkUpdateFunc === "function") {
-                    pluginInfo = checkUpdateFunc();
-                }
-            } catch (e) {
-                // 静默失败
-            }
-        }
-
-        // 如果从"ecu"命名空间导入失败，尝试直接从插件导入
-        if (!pluginInfo && ll.hasExported && ll.hasExported(pluginName, "CheckUpdate")) {
-            try {
-                const checkUpdateFunc = ll.imports(pluginName, "CheckUpdate");
-                if (checkUpdateFunc && typeof checkUpdateFunc === "function") {
-                    pluginInfo = checkUpdateFunc();
-                }
-            } catch (e) {
-                // 静默失败
-            }
-        }
+        // 使用统一辅助函数获取插件更新信息（一次导入，避免重复）
+        const pluginInfo = getPluginUpdateInfo(pluginName);
 
         if (pluginInfo) {
             const currentVersion = pluginInfo.plugin_version || "unknown";
+            pending++;
             checkedCount++;
-            // 使用Promise包装异步操作
-            checkPluginUpdate(pluginName, currentVersion);
-            completedCount++;
-        } else {
-            completedCount++;
+            // 传入已获取的pluginInfo避免内部重复导入，通过onComplete追踪异步完成
+            checkPluginUpdate(pluginName, currentVersion, false, pluginInfo, () => {
+                pending--;
+                if (pending === 0) {
+                    pluginPrint(`检查完成，共检查了 ${checkedCount} 个支持更新检查的插件`, "SUCCESS");
+                }
+            });
         }
     }
 
-    // 延迟输出统计信息，确保所有异步操作完成
-    setTimeout(() => {
-        pluginPrint(`检查完成，共检查了 ${checkedCount} 个支持更新检查的插件`, "SUCCESS");
-    }, 3000);
+    // 边界情况：没有任何插件支持更新检查
+    if (pending === 0) {
+        pluginPrint("没有找到支持更新检查的插件", "INFO");
+    }
 }
 
 // TAG: 注册指令模块
@@ -908,6 +889,7 @@ function RegisterCmd() {
     checkupdate_cmd.overload(["ReloadAction"]); // 重载插件
     checkupdate_cmd.overload(["AllAction"]); // 检查所有插件
     checkupdate_cmd.overload(["UpdateAction", "plugin"]); // 更新指定插件
+    checkupdate_cmd.overload(["plugin"]); // 检查指定插件
 
     // 指令回调处理
     checkupdate_cmd.setCallback((_cmd, origin, output, results) => {
@@ -926,9 +908,9 @@ function RegisterCmd() {
             // 无参数，显示帮助信息
             if (origin.typeName == "Player") {
                 const pl = mc.getPlayer(origin.player.realName);
-                pl.tell("§a[EasyCheckUpdate] §f命令帮助:\n/checkupdate - 显示此帮助信息\n/checkupdate all - 检查所有插件的更新\n/checkupdate reload - 重载插件\n/checkupdate update <插件名称> - 更新指定插件");
+                pl.tell("§a[EasyCheckUpdate] §f命令帮助:\n/checkupdate - 显示此帮助信息\n/checkupdate all - 检查所有插件的更新\n/checkupdate reload - 重载插件\n/checkupdate <插件名称> - 检查指定插件的更新\n/checkupdate update <插件名称> - 更新指定插件");
             } else {
-                pluginPrint("命令帮助:\n/checkupdate - 显示此帮助信息\n/checkupdate all - 检查所有插件的更新\n/checkupdate reload - 重载插件\n/checkupdate update <插件名称> - 更新指定插件");
+                pluginPrint("命令帮助:\n/checkupdate - 显示此帮助信息\n/checkupdate all - 检查所有插件的更新\n/checkupdate reload - 重载插件\n/checkupdate <插件名称> - 检查指定插件的更新\n/checkupdate update <插件名称> - 更新指定插件");
             }
             return output.success();
         }
@@ -944,7 +926,7 @@ function RegisterCmd() {
             }
             return output.success();
         } else if (results.action === "update") {
-            // 检查并更新指定插件
+            // 检查并自动更新指定插件
             const pluginName = results.plugin;
             if (!pluginName) {
                 if (origin.typeName == "Player") {
@@ -956,78 +938,10 @@ function RegisterCmd() {
                 return output.success();
             }
 
-            let pluginInfo = null;
-
-            // 尝试从"ecu"命名空间导入
-            try {
-                const checkUpdateFunc = ll.imports("ecu", pluginName);
-                if (checkUpdateFunc && typeof checkUpdateFunc === "function") {
-                    pluginInfo = checkUpdateFunc();
-                }
-            } catch (e) {
-                // 忽略错误，继续尝试其他方式
-            }
-
-            // 如果从"ecu"命名空间导入失败，尝试直接从插件导入
-            if (!pluginInfo) {
-                try {
-                    const checkUpdateFunc = ll.imports(pluginName, "CheckUpdate");
-                    if (checkUpdateFunc && typeof checkUpdateFunc === "function") {
-                        pluginInfo = checkUpdateFunc();
-                    }
-                } catch (e) {
-                    // 忽略错误
-                }
-            }
-
+            const pluginInfo = getPluginUpdateInfo(pluginName);
             if (pluginInfo) {
-                // 先重载插件以获取最新的导出信息
-                pluginPrint(`正在重载插件 ${pluginName} 以获取最新信息...`, "INFO");
-                try {
-                    mc.runcmdEx(`ll reload ${pluginName}`);
-                    // 等待一小段时间确保插件重载完成
-                    setTimeout(() => {
-                        pluginPrint(`插件 ${pluginName} 已重载，正在重新获取导出信息...`, "INFO");
-
-                        // 重新获取导出信息
-                        let newPluginInfo = null;
-
-                        // 尝试从"ecu"命名空间导入
-                        try {
-                            const checkUpdateFunc = ll.imports("ecu", pluginName);
-                            if (checkUpdateFunc && typeof checkUpdateFunc === "function") {
-                                newPluginInfo = checkUpdateFunc();
-                            }
-                        } catch (e) {
-                            // 忽略错误，继续尝试其他方式
-                        }
-
-                        // 如果从"ecu"命名空间导入失败，尝试直接从插件导入
-                        if (!newPluginInfo) {
-                            try {
-                                const checkUpdateFunc = ll.imports(pluginName, "CheckUpdate");
-                                if (checkUpdateFunc && typeof checkUpdateFunc === "function") {
-                                    newPluginInfo = checkUpdateFunc();
-                                }
-                            } catch (e) {
-                                // 忽略错误
-                            }
-                        }
-
-                        if (newPluginInfo) {
-                            const currentVersion = newPluginInfo.plugin_version || "unknown";
-                            checkPluginUpdate(pluginName, currentVersion, true);
-                        } else {
-                            pluginPrint(`重载后无法获取插件 ${pluginName} 的导出信息，使用重载前的信息`, "WARNING");
-                            const currentVersion = pluginInfo.plugin_version || "unknown";
-                            checkPluginUpdate(pluginName, currentVersion, true);
-                        }
-                    }, 500);
-                } catch (error) {
-                    pluginPrint(`重载插件 ${pluginName} 失败: ${error.message}，使用重载前的信息`, "WARNING");
-                    const currentVersion = pluginInfo.plugin_version || "unknown";
-                    checkPluginUpdate(pluginName, currentVersion, true);
-                }
+                const currentVersion = pluginInfo.plugin_version || "unknown";
+                checkPluginUpdate(pluginName, currentVersion, true);
                 if (origin.typeName == "Player") {
                     const pl = mc.getPlayer(origin.player.realName);
                     pl.tell(`§a正在检查并更新插件 ${pluginName}，请查看控制台获取详细信息`);
@@ -1050,31 +964,9 @@ function RegisterCmd() {
             }
             return output.success();
         } else if (results.plugin) {
-            // 检查指定插件的更新
+            // 检查指定插件的更新（仅检查，不自动更新）
             const pluginName = results.plugin;
-            let pluginInfo = null;
-
-            // 尝试从"ecu"命名空间导入
-            try {
-                const checkUpdateFunc = ll.imports("ecu", pluginName);
-                if (checkUpdateFunc && typeof checkUpdateFunc === "function") {
-                    pluginInfo = checkUpdateFunc();
-                }
-            } catch (e) {
-                // 忽略错误，继续尝试其他方式
-            }
-
-            // 如果从"ecu"命名空间导入失败，尝试直接从插件导入
-            if (!pluginInfo) {
-                try {
-                    const checkUpdateFunc = ll.imports(pluginName, "CheckUpdate");
-                    if (checkUpdateFunc && typeof checkUpdateFunc === "function") {
-                        pluginInfo = checkUpdateFunc();
-                    }
-                } catch (e) {
-                    // 忽略错误
-                }
-            }
+            const pluginInfo = getPluginUpdateInfo(pluginName);
 
             if (pluginInfo) {
                 const currentVersion = pluginInfo.plugin_version || "unknown";
