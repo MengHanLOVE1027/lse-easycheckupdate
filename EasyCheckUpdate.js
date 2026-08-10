@@ -3,7 +3,7 @@
 // 声明常量
 const plugin_name = "EasyCheckUpdate",
     plugin_name_smallest = "easycheckupdate",
-    plugin_version = "0.2.0-beta.4",
+    plugin_version = "0.2.0-beta.5",
     plugin_description = "一个基于 LSE 的插件更新检查工具 / A plugin update checker based on LSE.",
     plugin_github_link = "https://github.com/MengHanLOVE1027/lse-easycheckupdate",
     plugin_minebbs_link = "https://www.minebbs.com/resources/easycheckupdate-ecu-lse.15501/",
@@ -14,6 +14,334 @@ const plugin_name = "EasyCheckUpdate",
 // 声明全局变量
 let pluginConfig = null;
 let bstatsInstance = null;
+let initialUpdateCheckTimer = null;
+let recurringUpdateCheckTimer = null;
+// #endregion
+
+// TAG: I18N 国际化模块
+// #region I18N 国际化模块
+const I18N_DATA = {
+    "zh_CN": {
+        // ── Logo / 启动 ──
+        "logo.author": "作者：梦涵LOVE          版本：v{0}",
+        "logo.thanks": "感谢您使用Easy系列插件！",
+        "logo.license": "本插件使用 {0} 许可证协议发布",
+        "logo.github": "GitHub 仓库：{0}",
+        "logo.minebbs": "插件MineBBS资源帖：{0}",
+        "logo.community": "Easy系列插件交流群：1083195477",
+        "logo.author_ver": "作者：梦涵LOVE | 版本：v{0}",
+        "logo.bstats_status": "BStats状态：{0}",
+        "general.enabled": "已启用",
+        "general.disabled": "已禁用",
+
+        // ── 配置 ──
+        "config.created": "已创建默认配置文件",
+        "config.backed_up": "配置已备份到 {0}",
+        "config.backup_failed": "配置备份失败: {0}",
+        "config.version_update": "检测到配置版本更新: v{0} → v{1}，开始迁移配置...",
+        "config.migrated": "配置已迁移到 v{0}",
+        "config.migrate_failed": "配置迁移到 v{0} 失败: {1}",
+        "config.missing_added": "已补充缺失配置项: {0}",
+        "config.missing_auto_added": "已自动补充缺失配置项: {0}",
+        "config.migrate_done": "配置迁移完成!",
+        "config.load_failed": "加载配置文件失败: {0}",
+        "config.reloaded": "配置文件已重新加载",
+        "config.not_exist": "配置文件不存在，使用默认配置",
+        "config.reload_success": "重载成功",
+        "config.reload_failed": "重载失败: {0}",
+        "config.file_path": "配置文件: {0}",
+
+        // ── 更新检查 ──
+        "update.auto_check_delay": "将在 {0} 秒后自动检查所有插件的更新...",
+        "update.checking_all": "正在检查所有插件的更新...",
+        "update.checking": "正在检查插件 {0} 的更新...",
+        "update.fetching": "正在从 {0} 获取插件 {1} 的更新信息...",
+        "update.fetch_error": "从 {0} 获取插件 {1} 的更新信息时出错，状态码: {2}",
+        "update.format_error": "插件 {0} 的更新信息格式不正确",
+        "update.version_not_found": "插件 {0} 未找到指定版本 v{1}",
+        "update.up_to_date": "插件 {0} 已是最新版本: {1}",
+        "update.no_download_url": "插件 {0} 的更新信息缺少下载链接",
+        "update.no_required_info": "插件 {0} 的更新信息文件缺少必要信息",
+        "update.new_version": "插件 {0} 有新版本: v{1} (当前版本: {2})",
+        "update.target_version": "插件 {0} 将安装指定版本 v{1} (当前版本: {2})",
+        "update.author": "作者: {0}",
+        "update.time": "更新时间: {0}",
+        "update.type": "类型: {0}",
+        "update.content": "更新内容: {0}",
+        "update.download_url": "下载地址: {0}",
+        "update.newer_than_latest": "插件 {0} 的当前版本 {1} 比最新版本 v{2} 更新",
+        "update.parse_error": "解析插件 {0} 的更新信息时出错: {1}",
+        "update.check_error": "检查插件 {0} 的更新时出错: {1}",
+        "update.no_update_url": "未找到插件 {0} 的 update_url 字段，无法检查更新",
+        "update.check_done": "检查完成，共检查了 {0} 个支持更新检查的插件",
+        "update.no_plugins": "没有找到支持更新检查的插件",
+        "update.version_list": "插件 {0} 的可用版本列表:",
+        "update.version_detail": "插件 {0} 版本 v{1} 的详细信息:",
+        "update.fetch_failed": "获取插件 {0} 的更新信息失败，状态码: {1}",
+        "update.parse_version_error": "解析版本信息时出错: {0}",
+        "general.pre_release": "测试版",
+        "general.stable": "正式版",
+        "general.current_version": " [当前版本]",
+        "general.recommended": " ★推荐",
+        "general.no_content": "无更新内容",
+        "general.unknown_author": "未知作者",
+        "general.unknown_time": "未知时间",
+        "general.none": "无",
+
+        // ── 下载 / 解压 ──
+        "download.clean_dir_error": "清理目录 {0} 时出错: {1}",
+        "download.tar_done": "已使用 tar 解压完成",
+        "download.tar_failed": "tar 解压失败(exit={0})，尝试 PowerShell...",
+        "download.ps_done": "已使用 PowerShell 解压完成",
+        "download.ps_failed": "PowerShell 解压也失败(exit={0}): {1}",
+        "download.extract_failed": "解压失败: tar 和 PowerShell 均无法解压",
+        "download.detect_root": "检测到压缩包根目录: {0}",
+        "download.scan_error": "扫描解压目录时出错: {0}",
+        "download.copy": "  复制: {0}",
+        "download.copy_sub": "  复制: {0}/{1}",
+        "download.installed": "已安装 {0} 个文件到 {1}",
+        "download.copy_error": "复制文件时出错: {0}",
+        "download.downloading": "正在下载: {0}",
+        "download.curl_done": "curl 下载完成: {0} ({1} bytes)",
+        "download.curl_failed": "curl 下载失败(exit={0})，尝试 network.httpGet...",
+        "download.httpget_done": "httpGet 下载完成: {0}",
+        "download.write_failed": "写入文件失败: {0}",
+        "download.need_redirect": "GitHub Release 需要跟随重定向，但 curl 不可用",
+        "download.install_curl": "请确保服务器已安装 curl (Windows 10+ 自带)",
+        "download.fail_no_curl": "下载失败: HTTP {0} (curl 不可用，无法跟随重定向)",
+        "download.failed": "下载失败: HTTP {0}",
+        "download.from_url": "正在从 {0} 下载插件 {1} 版本 {2}...",
+        "download.plugin_failed": "下载插件 {0} 失败: {1}",
+        "download.extracting": "ZIP 已下载，正在解压...",
+        "download.updated_reloading": "插件 {0} 已更新到 v{1}，正在重载插件...",
+        "download.reloaded": "插件 {0} 已重载",
+        "download.reload_failed": "重载插件失败: {0}",
+        "download.reload_manual": "请手动执行: ll reload {0}",
+        "download.update_error": "更新插件 {0} 时出错: {1}",
+        "download.url_error": "从URL下载插件 {0} 时出错: {1}",
+        "download.backed_up": "已备份旧文件到 {0}",
+        "download.backup_failed": "备份文件失败: {0}",
+        "download.backup_dir_done": "已备份插件目录到 {0}",
+        "download.rollback_done": "安装失败，已恢复原插件文件",
+        "download.rollback_failed": "安装失败且无法恢复原插件文件: {0}",
+        "download.install_empty": "压缩包中没有可安装的文件",
+        "download.invalid_url": "下载地址不安全或格式无效: {0}",
+        "download.invalid_plugin_name": "插件名称包含非法路径字符: {0}",
+        "download.binary_need_curl": "二进制文件下载需要可用的 curl，已停止更新",
+        "download.file_updated": "已更新插件文件: {0}",
+        "download.no_file_path": "无法找到插件 {0} 的文件路径",
+
+        // ── 命令 / 帮助 ──
+        "command.desc": "检查插件更新",
+        "command.no_permission": "你没有权限使用此命令",
+        "command.help": "命令帮助:\n/checkupdate - 显示此帮助信息\n/checkupdate all - 检查所有插件的更新\n/checkupdate reload - 重载插件\n/checkupdate <插件名称> - 检查指定插件的更新\n/checkupdate update <插件名称> [版本号] - 更新指定插件\n/checkupdate info <插件名称> [版本号] - 查看版本列表或版本详情",
+        "command.update_usage": "用法: /checkupdate update <插件名称> [版本号]",
+        "command.info_usage": "用法: /checkupdate info <插件名称> [版本号]",
+        "command.checking_update": "正在检查并更新插件 {0}，请查看控制台获取详细信息",
+        "command.plugin_not_found": "未找到插件: {0}",
+        "command.querying_detail": "正在查询插件 {0} 版本 v{1} 的详细信息，请查看控制台",
+        "command.querying_list": "正在查询插件 {0} 的版本列表，请查看控制台",
+        "command.checking_all": "正在检查所有插件的更新，请查看控制台获取详细信息",
+        "command.checking_plugin": "正在检查插件 {0} 的更新，请查看控制台获取详细信息",
+
+        // ── BStats / 其他 ──
+        "bstats.init_failed": "BStats初始化失败: {0}",
+        "bstats.cmd_register_ok": "指令注册成功",
+        "bstats.cmd_register_fail": "指令注册失败: {0}",
+        "bstats.write_log_failed": "写入日志文件失败: {0}",
+        "bstats.read_config_failed": "读取bstats配置文件失败: {0}",
+        "bstats.save_config_failed": "保存配置文件失败: {0}",
+        "bstats.sync_config_failed": "同步BStats配置失败: {0}",
+        "bstats.disabled": "遥测模块已禁用，跳过上报。",
+        "bstats.preparing": "准备上报数据包内容:",
+        "bstats.submit_ok": "遥测数据上报成功。",
+        "bstats.submit_failed": "上报失败，状态码: {0}, 返回结果: {1}",
+        "bstats.network_error": "网络请求异常: {0}",
+        "bstats.started": "{0}遥测模块已启动。首次数据将在 10 秒后发送。",
+        "bstats.onlinemode_missing": "server.properties 中未找到 'online-mode'，将使用默认值 1。",
+        "bstats.onlinemode_read_error": "读取 server.properties 失败: {0}，将使用默认值 1。",
+        "bstats.onlinemode_read": "从 server.properties 读取到 online-mode: {0}",
+    },
+    "en_US": {
+        // ── Logo / Startup ──
+        "logo.author": "Author: MengHanLOVE          Version: v{0}",
+        "logo.thanks": "Thank you for using the Easy series plugins!",
+        "logo.license": "This plugin is released under the {0} license",
+        "logo.github": "GitHub Repository: {0}",
+        "logo.minebbs": "MineBBS Resource Post: {0}",
+        "logo.community": "Easy Series Plugin Community: 1083195477",
+        "logo.author_ver": "Author: MengHanLOVE | Version: v{0}",
+        "logo.bstats_status": "BStats Status: {0}",
+        "general.enabled": "Enabled",
+        "general.disabled": "Disabled",
+
+        // ── Config ──
+        "config.created": "Default configuration file created",
+        "config.backed_up": "Configuration backed up to {0}",
+        "config.backup_failed": "Configuration backup failed: {0}",
+        "config.version_update": "Config version update detected: v{0} → v{1}, starting migration...",
+        "config.migrated": "Configuration migrated to v{0}",
+        "config.migrate_failed": "Configuration migration to v{0} failed: {1}",
+        "config.missing_added": "Missing config items added: {0}",
+        "config.missing_auto_added": "Automatically added missing config items: {0}",
+        "config.migrate_done": "Configuration migration complete!",
+        "config.load_failed": "Failed to load configuration file: {0}",
+        "config.reloaded": "Configuration file reloaded",
+        "config.not_exist": "Configuration file does not exist, using defaults",
+        "config.reload_success": "Reload successful",
+        "config.reload_failed": "Reload failed: {0}",
+        "config.file_path": "Config file: {0}",
+
+        // ── Update Check ──
+        "update.auto_check_delay": "Will auto-check all plugins for updates in {0} seconds...",
+        "update.checking_all": "Checking all plugins for updates...",
+        "update.checking": "Checking plugin {0} for updates...",
+        "update.fetching": "Fetching update info for {1} from {0}...",
+        "update.fetch_error": "Error fetching update info for {1} from {0}, status code: {2}",
+        "update.format_error": "Update info format for plugin {0} is incorrect",
+        "update.version_not_found": "Plugin {0}: specified version v{1} not found",
+        "update.up_to_date": "Plugin {0} is up to date: {1}",
+        "update.no_download_url": "Update info for {0} is missing download URL",
+        "update.no_required_info": "Update info file for {0} is missing required information",
+        "update.new_version": "Plugin {0} has a new version: v{1} (current: {2})",
+        "update.target_version": "Plugin {0} will install specified version v{1} (current: {2})",
+        "update.author": "Author: {0}",
+        "update.time": "Update Time: {0}",
+        "update.type": "Type: {0}",
+        "update.content": "Update Content: {0}",
+        "update.download_url": "Download URL: {0}",
+        "update.newer_than_latest": "Plugin {0} current version {1} is newer than latest v{2}",
+        "update.parse_error": "Error parsing update info for {0}: {1}",
+        "update.check_error": "Error checking updates for {0}: {1}",
+        "update.no_update_url": "update_url field not found for plugin {0}, unable to check for updates",
+        "update.check_done": "Check complete, {0} update-capable plugin(s) checked",
+        "update.no_plugins": "No plugins supporting update checks found",
+        "update.version_list": "Available versions for plugin {0}:",
+        "update.version_detail": "Details for plugin {0} version v{1}:",
+        "update.fetch_failed": "Failed to fetch update info for {0}, status code: {1}",
+        "update.parse_version_error": "Error parsing version info: {0}",
+        "general.pre_release": "Pre-release",
+        "general.stable": "Stable",
+        "general.current_version": " [Current]",
+        "general.recommended": " ★Recommended",
+        "general.no_content": "No update content",
+        "general.unknown_author": "Unknown author",
+        "general.unknown_time": "Unknown time",
+        "general.none": "None",
+
+        // ── Download / Extract ──
+        "download.clean_dir_error": "Error cleaning directory {0}: {1}",
+        "download.tar_done": "Extraction completed using tar",
+        "download.tar_failed": "tar extraction failed (exit={0}), trying PowerShell...",
+        "download.ps_done": "Extraction completed using PowerShell",
+        "download.ps_failed": "PowerShell extraction also failed (exit={0}): {1}",
+        "download.extract_failed": "Extraction failed: both tar and PowerShell could not extract",
+        "download.detect_root": "Detected archive root directory: {0}",
+        "download.scan_error": "Error scanning extracted directory: {0}",
+        "download.copy": "  Copy: {0}",
+        "download.copy_sub": "  Copy: {0}/{1}",
+        "download.installed": "Installed {0} file(s) to {1}",
+        "download.copy_error": "Error copying files: {0}",
+        "download.downloading": "Downloading: {0}",
+        "download.curl_done": "curl download complete: {0} ({1} bytes)",
+        "download.curl_failed": "curl download failed (exit={0}), trying network.httpGet...",
+        "download.httpget_done": "httpGet download complete: {0}",
+        "download.write_failed": "Failed to write file: {0}",
+        "download.need_redirect": "GitHub Release requires redirect following, but curl is unavailable",
+        "download.install_curl": "Please ensure curl is installed on the server (built-in on Windows 10+)",
+        "download.fail_no_curl": "Download failed: HTTP {0} (curl unavailable, cannot follow redirect)",
+        "download.failed": "Download failed: HTTP {0}",
+        "download.from_url": "Downloading plugin {1} version {2} from {0}...",
+        "download.plugin_failed": "Failed to download plugin {0}: {1}",
+        "download.extracting": "ZIP downloaded, extracting...",
+        "download.updated_reloading": "Plugin {0} updated to v{1}, reloading...",
+        "download.reloaded": "Plugin {0} reloaded",
+        "download.reload_failed": "Failed to reload plugin: {0}",
+        "download.reload_manual": "Please manually execute: ll reload {0}",
+        "download.update_error": "Error updating plugin {0}: {1}",
+        "download.url_error": "Error downloading plugin {0} from URL: {1}",
+        "download.backed_up": "Old file backed up to {0}",
+        "download.backup_failed": "Failed to backup file: {0}",
+        "download.backup_dir_done": "Plugin directory backed up to {0}",
+        "download.rollback_done": "Installation failed; original plugin files were restored",
+        "download.rollback_failed": "Installation failed and original plugin files could not be restored: {0}",
+        "download.install_empty": "The archive contains no installable files",
+        "download.invalid_url": "Download URL is unsafe or invalid: {0}",
+        "download.invalid_plugin_name": "Plugin name contains invalid path characters: {0}",
+        "download.binary_need_curl": "A working curl installation is required for binary downloads; update stopped",
+        "download.file_updated": "Plugin file updated: {0}",
+        "download.no_file_path": "Cannot find file path for plugin {0}",
+
+        // ── Command / Help ──
+        "command.desc": "Check plugin updates",
+        "command.no_permission": "You do not have permission to use this command",
+        "command.help": "Command Help:\n/checkupdate - Show this help\n/checkupdate all - Check all plugins for updates\n/checkupdate reload - Reload plugin\n/checkupdate <plugin> - Check specified plugin for updates\n/checkupdate update <plugin> [version] - Update specified plugin\n/checkupdate info <plugin> [version] - View version list or details",
+        "command.update_usage": "Usage: /checkupdate update <plugin> [version]",
+        "command.info_usage": "Usage: /checkupdate info <plugin> [version]",
+        "command.checking_update": "Checking and updating plugin {0}, check console for details",
+        "command.plugin_not_found": "Plugin not found: {0}",
+        "command.querying_detail": "Querying details for {0} v{1}, check console",
+        "command.querying_list": "Querying version list for {0}, check console",
+        "command.checking_all": "Checking all plugins for updates, check console for details",
+        "command.checking_plugin": "Checking {0} for updates, check console for details",
+
+        // ── BStats / Misc ──
+        "bstats.init_failed": "BStats initialization failed: {0}",
+        "bstats.cmd_register_ok": "Command registration successful",
+        "bstats.cmd_register_fail": "Command registration failed: {0}",
+        "bstats.write_log_failed": "Failed to write log file: {0}",
+        "bstats.read_config_failed": "Failed to read BStats config file: {0}",
+        "bstats.save_config_failed": "Failed to save config file: {0}",
+        "bstats.sync_config_failed": "Failed to sync BStats config: {0}",
+        "bstats.disabled": "Telemetry module disabled, skipping data submission.",
+        "bstats.preparing": "Preparing telemetry data payload:",
+        "bstats.submit_ok": "Telemetry data submitted successfully.",
+        "bstats.submit_failed": "Submission failed, status code: {0}, response: {1}",
+        "bstats.network_error": "Network request error: {0}",
+        "bstats.started": "{0} telemetry module started. First data will be sent in 10 seconds.",
+        "bstats.onlinemode_missing": "'online-mode' not found in server.properties, defaulting to 1.",
+        "bstats.onlinemode_read_error": "Failed to read server.properties: {0}, defaulting to 1.",
+        "bstats.onlinemode_read": "Read online-mode from server.properties: {0}",
+    }
+};
+
+// 全局翻译函数和当前语言
+let i18nLang = "zh_CN";
+let i18nData = I18N_DATA["zh_CN"];
+
+/**
+ * 翻译函数
+ * @param {String} key 翻译键
+ * @param  {...any} args 格式化参数（替换 {0}, {1}, ... 占位符）
+ * @returns {String} 翻译后的字符串
+ */
+function t(key, ...args) {
+    let template = i18nData[key];
+    if (template === undefined) {
+        // 回退到键名，方便调试
+        return key;
+    }
+    for (let i = 0; i < args.length; i++) {
+        template = template.replace(`{${i}}`, args[i]);
+    }
+    return template;
+}
+
+/**
+ * 根据当前配置切换输出语言
+ */
+function applyConfiguredLanguage() {
+    const configLang = pluginConfig && pluginConfig.language ? pluginConfig.language : "zh_CN";
+    if (I18N_DATA[configLang]) {
+        i18nLang = configLang;
+        i18nData = I18N_DATA[configLang];
+        return;
+    }
+
+    i18nLang = "zh_CN";
+    i18nData = I18N_DATA["zh_CN"];
+    pluginPrint(`Unknown language "${configLang}", falling back to zh_CN`, "WARNING");
+}
 // #endregion
 
 // TAG: BStats模块 - By Nico6719
@@ -66,13 +394,13 @@ class BStatsImpl {
                 const match = content.match(/^online-mode\s*=\s*(true|false)/m);
                 if (match) {
                     const value = match[1];
-                    if (this.debugMode) bstatsRandomGradientLog(`从 server.properties 读取到 online-mode: ${value}`);
+                    if (this.debugMode) bstatsRandomGradientLog(t("bstats.onlinemode_read", value));
                     return value === 'true' ? 1 : 0;
                 }
             }
-            if (this.debugMode) logger.warn("server.properties 中未找到 'online-mode'，将使用默认值 1。");
+            if (this.debugMode) logger.warn(t("bstats.onlinemode_missing"));
         } catch (e) {
-            if (this.debugMode) logger.error(`读取 server.properties 失败: ${e.message}，将使用默认值 1。`);
+            if (this.debugMode) logger.error(t("bstats.onlinemode_read_error", e.message));
         }
         // 默认返回 1 (在线模式)
         return 1;
@@ -88,7 +416,7 @@ class BStatsImpl {
                     const configContent = File.readFrom(bstatsConfigPath);
                     bstatsConfig = JSON.parse(configContent);
                 } catch (e) {
-                    logger.error("读取bstats配置文件失败: " + e.message);
+                    logger.error(t("bstats.read_config_failed", e.message));
                 }
             }
 
@@ -109,11 +437,11 @@ class BStatsImpl {
                     const configPath = `${plugin_path}/config/${plugin_name}.json`;
                     File.writeTo(configPath, JSON.stringify(pluginConfig, null, 4));
                 } catch (e) {
-                    logger.error("保存配置文件失败: " + e.message);
+                    logger.error(t("bstats.save_config_failed", e.message));
                 }
             }
         } catch (e) {
-            logger.error("同步BStats配置失败: " + e.message);
+            logger.error(t("bstats.sync_config_failed", e.message));
             // 使用默认UUID
             this.serverUUID = this.generateUUID();
         }
@@ -201,26 +529,28 @@ class BStatsImpl {
     }
 
     submit() {
+        // 先同步配置，确保运行期间启用或禁用遥测能立即生效
+        this.syncConfig();
         if (!this.enabled) {
-            bstatsRandomGradientLog("遥测模块已禁用，跳过上报。");
+            bstatsRandomGradientLog(t("bstats.disabled"));
             return;
         }
         const payload = this.collectData();
         if (this.debugMode) {
-            bstatsRandomGradientLog("准备上报数据包内容:");
+            bstatsRandomGradientLog(t("bstats.preparing"));
             bstatsRandomGradientLog(JSON.stringify(payload, null, 2));
         }
         try {
             network.httpPost(this.baseUrl, JSON.stringify(payload), "application/json", (status, result) => {
                 if (status === 200) {
-                    bstatsRandomGradientLog("遥测数据上报成功。");
+                    bstatsRandomGradientLog(t("bstats.submit_ok"));
                 } else {
-                    logger.warn(`上报失败，状态码: ${status}, 返回结果: ${result}`);
+                    logger.warn(t("bstats.submit_failed", status, result));
                 }
             });
         } catch (e) {
             if (this.debugMode) {
-                logger.error("网络请求异常: " + e.message);
+                logger.error(t("bstats.network_error", e.message));
             }
         }
     }
@@ -230,7 +560,7 @@ class BStatsImpl {
         setTimeout(() => this.submit(), 10 * 1000);
         setInterval(() => this.submit(), 30 * 60 * 1000);
         setTimeout(() => {
-            bstatsRandomGradientLog(`${this.pluginName}遥测模块已启动。首次数据将在 10 秒后发送。`);
+            bstatsRandomGradientLog(t("bstats.started", this.pluginName));
         }, 2000)
     }
 }
@@ -332,7 +662,7 @@ function pluginPrint(text, level = "INFO") {
         case "INFO":
             logger.info(String(RandomColor(text)))
             break
-        case "SUCESS":
+        case "SUCCESS":
             logger.info(logger_head + String(RandomColor(text)))
             break
         case "DEBUG":
@@ -367,7 +697,7 @@ function pluginPrint(text, level = "INFO") {
         const log_line = `${timestamp} - ${plugin_name} - ${level} - ${text}`
         File.writeLine(log_file, log_line)
     } catch (e) {
-        logger.error(`写入日志文件失败: ${e}`)
+        logger.error(t("bstats.write_log_failed", e))
     }
 }
 
@@ -375,7 +705,6 @@ function pluginPrint(text, level = "INFO") {
  * 加载插件
  */
 function Loadplugin() {
-    // 初始化插件配置
     // 确保插件目录存在
     if (!File.exists(plugin_path)) {
         File.createDir(plugin_path);
@@ -386,44 +715,139 @@ function Loadplugin() {
         File.createDir(configDir);
     }
 
-    // 使用LSE的配置文件加载方式
+    // ── 配置版本管理系统（版本号跟随插件版本） ──
     const configPath = `${plugin_path}/config/${plugin_name}.json`;
+    const configBackupPath = `${configDir}/.config_backup.json`;
 
-    // 尝试导入配置文件
+    // 完整默认配置（Version 使用插件版本号）
+    const configDefaults = {
+        "Version": plugin_version,
+        "language": "zh_CN",
+        "Bstats": {
+            "EnableModule": true,
+            "logSentData": false
+        },
+        "check_update_on_load": true,
+        "check_interval": 1800,
+        "check_delay": 10,
+        "last_check_time": 0
+    };
+
+    /**
+     * 深度合并配置：将 defaults 中缺失的键合并到 target，不覆盖已有值
+     */
+    function deepMergeConfig(defaults, target) {
+        const result = JSON.parse(JSON.stringify(target));
+        for (const key in defaults) {
+            if (result[key] === undefined) {
+                result[key] = defaults[key];
+            } else if (typeof defaults[key] === 'object' && defaults[key] !== null && !Array.isArray(defaults[key]) &&
+                       typeof result[key] === 'object' && result[key] !== null && !Array.isArray(result[key])) {
+                result[key] = deepMergeConfig(defaults[key], result[key]);
+            }
+        }
+        return result;
+    }
+
+    /**
+     * 列出 defaults 中 target 缺失的属性名
+     */
+    function getMissingKeys(defaults, target) {
+        const missing = [];
+        for (const key in defaults) {
+            if (target[key] === undefined) {
+                missing.push(key);
+            }
+        }
+        return missing;
+    }
+
+    /**
+     * 备份当前配置到 .config_backup.json
+     */
+    function backupConfig(savedVer) {
+        try {
+            const backup = {
+                version: savedVer || "unknown",
+                timestamp: new Date().toISOString(),
+                config: JSON.parse(JSON.stringify(pluginConfig))
+            };
+            File.writeTo(configBackupPath, JSON.stringify(backup, null, 4));
+            pluginPrint(t("config.backed_up", configBackupPath), "INFO");
+        } catch (e) {
+            pluginPrint(t("config.backup_failed", e.message), "WARNING");
+        }
+    }
+
+    /**
+     * 增量迁移配置
+     * @param {String} oldVersion 旧配置记录的插件版本号
+     */
+    function migrateConfig(oldVersion) {
+        const migrations = [
+            // 未来配置迁移示例：
+            // { version: "0.3.0", handler: () => {
+            //     if (!pluginConfig.notifyChannel) pluginConfig.notifyChannel = "console";
+            // } },
+        ];
+
+        for (const migration of migrations) {
+            if (compareVersions(oldVersion, migration.version) < 0) {
+                try {
+                    backupConfig(oldVersion);
+                    migration.handler();
+                    pluginPrint(t("config.migrated", migration.version), "SUCCESS");
+                } catch (e) {
+                    pluginPrint(t("config.migrate_failed", migration.version, e.message), "ERROR");
+                }
+            }
+        }
+    }
+
+    // ── 加载配置文件 ──
     try {
-        // 如果配置文件存在，读取它
         if (File.exists(configPath)) {
             const configContent = File.readFrom(configPath);
             pluginConfig = JSON.parse(configContent);
         } else {
-            // 创建默认配置
-            pluginConfig = {
-                "Bstats": {
-                    "EnableModule": true,
-                    "logSentData": false
-                },
-                "check_update_on_load": true,
-                "check_interval": 1800,
-                "check_delay": 10,
-                "last_check_time": 0
-            };
-            // 保存默认配置
+            // 全新安装，写入默认配置
+            pluginConfig = JSON.parse(JSON.stringify(configDefaults));
             File.writeTo(configPath, JSON.stringify(pluginConfig, null, 4));
+            pluginPrint(t("config.created"), "INFO");
+        }
+
+        const savedVersion = pluginConfig.Version || "0.0.0";
+
+        if (compareVersions(savedVersion, plugin_version) < 0) {
+            pluginPrint(t("config.version_update", savedVersion, plugin_version));
+            backupConfig(savedVersion);
+            migrateConfig(savedVersion);
+            // 补全所有当前版本必需的配置项
+            const missing = getMissingKeys(configDefaults, pluginConfig);
+            pluginConfig = deepMergeConfig(configDefaults, pluginConfig);
+            pluginConfig.Version = plugin_version;
+            File.writeTo(configPath, JSON.stringify(pluginConfig, null, 4));
+            if (missing.length > 0) {
+                pluginPrint(t("config.missing_added", missing.join(", ")), "INFO");
+            }
+            pluginPrint(t("config.migrate_done"), "SUCCESS");
+        } else {
+            // 版本一致，但仍需确保所有默认项存在（防止用户手误删除）
+            const missing = getMissingKeys(configDefaults, pluginConfig);
+            if (missing.length > 0) {
+                pluginConfig = deepMergeConfig(configDefaults, pluginConfig);
+                File.writeTo(configPath, JSON.stringify(pluginConfig, null, 4));
+                pluginPrint(t("config.missing_auto_added", missing.join(", ")), "INFO");
+            }
         }
     } catch (e) {
-        pluginPrint(`加载配置文件失败: ${e.message}`, "ERROR");
-        // 使用默认配置
-        pluginConfig = {
-            "Bstats": {
-                "EnableModule": true,
-                "logSentData": false
-            },
-            "check_update_on_load": true,
-            "check_interval": 1800,
-            "check_delay": 10,
-            "last_check_time": 0
-        };
+        // 使用默认配置（不影响插件运行）
+        pluginConfig = JSON.parse(JSON.stringify(configDefaults));
+        pluginPrint(t("config.load_failed", e.message), "ERROR");
     }
+
+    // ── 初始化 i18n 语言 ──
+    applyConfiguredLanguage();
 
     // NOTE: 输出插件LOGO
     logger.setTitle(`\x1b[32m${plugin_name}\x1b[0m`) // 设置日志头
@@ -434,18 +858,18 @@ function Loadplugin() {
 ██╔══╝  ██╔══██║╚════██║  ╚██╔╝  ██║   ██║██╔═══╝ ██║  ██║██╔══██║   ██║   ██╔══╝  
 ███████╗██║  ██║███████║   ██║   ╚██████╔╝██║     ██████╔╝██║  ██║   ██║   ███████╗
 ╚══════╝╚═╝  ╚═╝╚══════╝   ╚═╝    ╚═════╝ ╚═╝     ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝`)
-    pluginPrint(`作者：梦涵LOVE          版本：v${plugin_version}`)
+    pluginPrint(t("logo.author", plugin_version))
     pluginPrint("================================================================================")
     pluginPrint(`${plugin_name} - ${plugin_description}`)
-    pluginPrint("感谢您使用Easy系列插件！")
-    pluginPrint(`本插件使用 ${plugin_license} 许可证协议发布`)
-    pluginPrint(`GitHub 仓库：${plugin_github_link}`)
-    pluginPrint(`插件MineBBS资源帖：${plugin_minebbs_link}`)
-    pluginPrint("Easy系列插件交流群：1083195477")
-    pluginPrint(`作者：梦涵LOVE | 版本：v${plugin_version}`)
+    pluginPrint(t("logo.thanks"))
+    pluginPrint(t("logo.license", plugin_license))
+    pluginPrint(t("logo.github", plugin_github_link))
+    pluginPrint(t("logo.minebbs", plugin_minebbs_link))
+    pluginPrint(t("logo.community"))
+    pluginPrint(t("logo.author_ver", plugin_version))
 
     let bstatsConf = pluginConfig && pluginConfig.Bstats ? pluginConfig.Bstats : {}; // 获取BStats配置
-    pluginPrint("BStats状态：" + (bstatsConf.EnableModule ? "已启用" : "已禁用"))
+    pluginPrint(t("logo.bstats_status", bstatsConf.EnableModule ? t("general.enabled") : t("general.disabled")))
     pluginPrint("================================================================================")
 
     // 初始化BStats
@@ -453,25 +877,18 @@ function Loadplugin() {
         bstatsInstance = new BStatsImpl(29850);
         bstatsInstance.start();
     } catch (e) {
-        pluginPrint("BStats初始化失败: " + e, "ERROR");
+        pluginPrint(t("bstats.init_failed", e), "ERROR");
     }
 
     // 注册指令
     try {
         RegisterCmd();
-        pluginPrint("指令注册成功", "SUCCESS");
+        pluginPrint(t("bstats.cmd_register_ok"), "SUCCESS");
     } catch (e) {
-        pluginPrint("指令注册失败: " + e, "ERROR");
+        pluginPrint(t("bstats.cmd_register_fail", e), "ERROR");
     }
 
-    // 自动检查更新
-    if (pluginConfig && pluginConfig.check_update_on_load) {
-        const delay = pluginConfig.check_delay || 10;
-        pluginPrint(`将在 ${delay} 秒后自动检查所有插件的更新...`);
-        setTimeout(() => {
-            checkAllPluginsUpdate();
-        }, delay * 1000);
-    }
+    scheduleUpdateChecks();
 }
 
 // TAG: 更新检查模块
@@ -482,33 +899,87 @@ function Loadplugin() {
  * @param {String} version2 版本号2
  * @returns {Number} -1 表示 version1 < version2，0 表示 version1 == version2，1 表示 version1 > version2
  */
-function compareVersions(version1, version2) {
-    // 移除版本号前的 'v' 或 'V' 前缀
-    const v1 = version1.replace(/^[vV]/, '');
-    const v2 = version2.replace(/^[vV]/, '');
+function parseSemanticVersion(version) {
+    let normalized = String(version == null ? "" : version).trim().replace(/^[vV]/, '');
+    normalized = normalized.split('+')[0];
 
-    // 分割版本号
-    const v1Parts = v1.split('.');
-    const v2Parts = v2.split('.');
-
-    // 确保两个版本号的长度相同
-    const maxLength = Math.max(v1Parts.length, v2Parts.length);
-    while (v1Parts.length < maxLength) v1Parts.push('0');
-    while (v2Parts.length < maxLength) v2Parts.push('0');
-
-    // 逐个比较版本号部分
-    for (let i = 0; i < maxLength; i++) {
-        const num1 = parseInt(v1Parts[i]);
-        const num2 = parseInt(v2Parts[i]);
-
-        if (isNaN(num1) || isNaN(num2)) {
-            // 如果无法转换为数字，则按字符串比较
-            if (v1Parts[i] < v2Parts[i]) return -1;
-            if (v1Parts[i] > v2Parts[i]) return 1;
-        } else {
-            if (num1 < num2) return -1;
-            if (num1 > num2) return 1;
+    let coreText = normalized;
+    let preReleaseText = null;
+    const dashIndex = normalized.indexOf('-');
+    if (dashIndex >= 0) {
+        coreText = normalized.substring(0, dashIndex);
+        preReleaseText = normalized.substring(dashIndex + 1);
+    } else {
+        // 兼容 1.0.0rc1 这类未使用连字符的常见写法
+        const attachedPreRelease = normalized.match(/^(\d+(?:\.\d+)*?)([A-Za-z][0-9A-Za-z.-]*)$/);
+        if (attachedPreRelease) {
+            coreText = attachedPreRelease[1];
+            preReleaseText = attachedPreRelease[2];
         }
+    }
+
+    if (!/^\d+(?:\.\d+)*$/.test(coreText)) return null;
+    if (preReleaseText !== null && !/^[0-9A-Za-z.-]+$/.test(preReleaseText)) return null;
+
+    return {
+        normalized: normalized,
+        core: coreText.split('.').map(part => Number(part)),
+        preRelease: preReleaseText === null ? null : preReleaseText.split('.')
+    };
+}
+
+function compareVersions(version1, version2) {
+    const parsed1 = parseSemanticVersion(version1);
+    const parsed2 = parseSemanticVersion(version2);
+
+    // 对非标准版本号保留确定性的自然排序，避免比较函数抛出异常
+    if (!parsed1 || !parsed2) {
+        const loose1 = String(version1 == null ? "" : version1).replace(/^[vV]/, '').toLowerCase();
+        const loose2 = String(version2 == null ? "" : version2).replace(/^[vV]/, '').toLowerCase();
+        const tokens1 = loose1.match(/\d+|\D+/g) || [];
+        const tokens2 = loose2.match(/\d+|\D+/g) || [];
+        const tokenCount = Math.max(tokens1.length, tokens2.length);
+        for (let i = 0; i < tokenCount; i++) {
+            if (tokens1[i] === undefined) return -1;
+            if (tokens2[i] === undefined) return 1;
+            const numeric1 = /^\d+$/.test(tokens1[i]);
+            const numeric2 = /^\d+$/.test(tokens2[i]);
+            if (numeric1 && numeric2) {
+                const number1 = Number(tokens1[i]);
+                const number2 = Number(tokens2[i]);
+                if (number1 !== number2) return number1 < number2 ? -1 : 1;
+            } else if (tokens1[i] !== tokens2[i]) {
+                return tokens1[i] < tokens2[i] ? -1 : 1;
+            }
+        }
+        return 0;
+    }
+
+    const coreLength = Math.max(parsed1.core.length, parsed2.core.length);
+    for (let i = 0; i < coreLength; i++) {
+        const part1 = parsed1.core[i] === undefined ? 0 : parsed1.core[i];
+        const part2 = parsed2.core[i] === undefined ? 0 : parsed2.core[i];
+        if (part1 !== part2) return part1 < part2 ? -1 : 1;
+    }
+
+    // SemVer 规则：相同核心版本下，正式版高于任何预发布版
+    if (parsed1.preRelease === null && parsed2.preRelease !== null) return 1;
+    if (parsed1.preRelease !== null && parsed2.preRelease === null) return -1;
+    if (parsed1.preRelease === null && parsed2.preRelease === null) return 0;
+
+    const preLength = Math.max(parsed1.preRelease.length, parsed2.preRelease.length);
+    for (let i = 0; i < preLength; i++) {
+        const part1 = parsed1.preRelease[i];
+        const part2 = parsed2.preRelease[i];
+        if (part1 === undefined) return -1;
+        if (part2 === undefined) return 1;
+        if (part1 === part2) continue;
+
+        const numeric1 = /^\d+$/.test(part1);
+        const numeric2 = /^\d+$/.test(part2);
+        if (numeric1 && numeric2) return Number(part1) < Number(part2) ? -1 : 1;
+        if (numeric1 !== numeric2) return numeric1 ? -1 : 1;
+        return part1 < part2 ? -1 : 1;
     }
     return 0;
 }
@@ -519,8 +990,15 @@ function compareVersions(version1, version2) {
  * @returns {Boolean} 是否为预发布版本
  */
 function isPreRelease(version) {
-    const v = version.replace(/^[vV]/, '');
-    return /[a-zA-Z]/.test(v);
+    const parsed = parseSemanticVersion(version);
+    if (parsed) return parsed.preRelease !== null;
+    return /[a-zA-Z]/.test(String(version == null ? "" : version).replace(/^[vV]/, ''));
+}
+
+function findVersionKey(versions, requestedVersion) {
+    if (versions[requestedVersion]) return requestedVersion;
+    const normalized = String(requestedVersion).replace(/^[vV]/, '');
+    return Object.keys(versions).find(version => version.replace(/^[vV]/, '') === normalized) || null;
 }
 
 /**
@@ -569,14 +1047,14 @@ function getPluginUpdateInfo(pluginName) {
  * @param {Boolean} userIsPreRelease 用户当前是否为预发布版本
  */
 function printVersionList(pluginName, versions, currentVersion, recommendedVer, userIsPreRelease) {
-    pluginPrint(`插件 ${pluginName} 的可用版本列表:`);
+    pluginPrint(t("update.version_list", pluginName));
     const sorted = Object.keys(versions).sort((a, b) => compareVersions(b, a)); // 降序排列
     for (const ver of sorted) {
         // 正式版用户不显示测试版
         if (!userIsPreRelease && isPreRelease(ver)) continue;
-        const tag = isPreRelease(ver) ? "测试版" : "正式版";
-        const marker = ver === currentVersion ? " [当前版本]" : "";
-        const latest = ver === recommendedVer ? " ★推荐" : "";
+        const tag = t(isPreRelease(ver) ? "general.pre_release" : "general.stable");
+        const marker = compareVersions(ver, currentVersion) === 0 ? t("general.current_version") : "";
+        const latest = ver === recommendedVer ? t("general.recommended") : "";
         pluginPrint(`  v${ver} (${tag})${latest}${marker}`);
     }
 }
@@ -591,7 +1069,7 @@ function printVersionList(pluginName, versions, currentVersion, recommendedVer, 
  * @param {String|null} targetVersion 指定目标版本号，为null时智能选择最佳版本
  */
 function checkPluginUpdate(pluginName, currentVersion, autoUpdate = false, pluginObj = null, onComplete = null, targetVersion = null) {
-    pluginPrint(`正在检查插件 ${pluginName} 的更新...`);
+    pluginPrint(t("update.checking", pluginName));
 
     // 如果未传入预导入的pluginObj，则通过getPluginUpdateInfo获取
     if (pluginObj === null) {
@@ -607,13 +1085,13 @@ function checkPluginUpdate(pluginName, currentVersion, autoUpdate = false, plugi
         try {
             // 从update_url字段获取更新信息
             const updateUrl = pluginObj.update_url;
-            pluginPrint(`正在从 ${updateUrl} 获取插件 ${pluginName} 的更新信息...`);
+            pluginPrint(t("update.fetching", updateUrl, pluginName));
 
             // 下载更新信息
             network.httpGet(updateUrl, (status, response) => {
                 try {
                     if (status !== 200) {
-                        pluginPrint(`从 ${updateUrl} 获取插件 ${pluginName} 的更新信息时出错，状态码: ${status}`, "WARNING");
+                        pluginPrint(t("update.fetch_error", updateUrl, pluginName, status), "WARNING");
                         return;
                     }
 
@@ -622,35 +1100,49 @@ function checkPluginUpdate(pluginName, currentVersion, autoUpdate = false, plugi
 
                     // 检查是否包含必要的信息
                     // 支持两种格式：单版本格式和多版本格式
+                    let explicitTarget = false;
                     if (updateData.version && updateData.download_url) {
                         // 单版本格式
                         latestVersion = updateData.version;
                         downloadUrl = updateData.download_url;
-                        updateContent = updateData.update_content || "无更新内容";
-                        author = updateData.author || "未知作者";
-                        updateTime = updateData.update_time || "未知时间";
+                        updateContent = updateData.update_content || t("general.no_content");
+                        author = updateData.author || t("general.unknown_author");
+                        updateTime = updateData.update_time || t("general.unknown_time");
+                        if (targetVersion) {
+                            if (compareVersions(targetVersion, latestVersion) !== 0) {
+                                pluginPrint(t("update.version_not_found", pluginName, targetVersion), "WARNING");
+                                return;
+                            }
+                            explicitTarget = true;
+                        }
                     } else if (updateData.latest_version && updateData.versions) {
                         // 多版本格式
                         const versions = updateData.versions;
 
                         // 仅支持对象格式的 versions
-                        if (Array.isArray(versions) || typeof versions !== 'object') {
-                            pluginPrint(`插件 ${pluginName} 的更新信息格式不正确`, "WARNING");
+                        if (!versions || Array.isArray(versions) || typeof versions !== 'object') {
+                            pluginPrint(t("update.format_error", pluginName), "WARNING");
                             return;
                         }
 
                         // 如果指定了目标版本，直接使用
                         if (targetVersion) {
-                            const targetInfo = versions[targetVersion];
-                            if (!targetInfo) {
-                                pluginPrint(`插件 ${pluginName} 未找到指定版本 v${targetVersion}`, "WARNING");
+                            const targetKey = findVersionKey(versions, targetVersion);
+                            if (!targetKey) {
+                                pluginPrint(t("update.version_not_found", pluginName, targetVersion), "WARNING");
                                 return;
                             }
-                            latestVersion = targetVersion;
+                            const targetInfo = versions[targetKey];
+                            if (!targetInfo || typeof targetInfo !== 'object') {
+                                pluginPrint(t("update.format_error", pluginName), "WARNING");
+                                return;
+                            }
+                            latestVersion = targetKey;
                             downloadUrl = targetInfo.download_url;
-                            updateContent = targetInfo.update_content || "无更新内容";
-                            author = targetInfo.author || "未知作者";
-                            updateTime = targetInfo.update_time || "未知时间";
+                            updateContent = targetInfo.update_content || t("general.no_content");
+                            author = targetInfo.author || t("general.unknown_author");
+                            updateTime = targetInfo.update_time || t("general.unknown_time");
+                            explicitTarget = true;
                         } else {
                             // 智能选择最佳版本：正式版用户跳过测试版，测试版用户沿升级链逐级升级
                             const userIsPreRelease = isPreRelease(currentVersion);
@@ -668,58 +1160,63 @@ function checkPluginUpdate(pluginName, currentVersion, autoUpdate = false, plugi
                             }
 
                             if (!candidateVer) {
-                                pluginPrint(`插件 ${pluginName} 已是最新版本: ${currentVersion}`);
+                                pluginPrint(t("update.up_to_date", pluginName, currentVersion));
                                 return;
                             }
 
                             const versionInfo = versions[candidateVer];
-                            latestVersion = candidateVer;
-                            downloadUrl = versionInfo.download_url;
-                            if (!downloadUrl) {
-                                pluginPrint(`插件 ${pluginName} 的更新信息缺少下载链接`, "WARNING");
+                            if (!versionInfo || typeof versionInfo !== 'object') {
+                                pluginPrint(t("update.format_error", pluginName), "WARNING");
                                 return;
                             }
-                            updateContent = versionInfo.update_content || "无更新内容";
-                            author = versionInfo.author || "未知作者";
-                            updateTime = versionInfo.update_time || "未知时间";
+                            latestVersion = candidateVer;
+                            downloadUrl = versionInfo.download_url;
+                            updateContent = versionInfo.update_content || t("general.no_content");
+                            author = versionInfo.author || t("general.unknown_author");
+                            updateTime = versionInfo.update_time || t("general.unknown_time");
                         }
                     } else {
-                        pluginPrint(`插件 ${pluginName} 的更新信息文件缺少必要信息`, "WARNING");
+                        pluginPrint(t("update.no_required_info", pluginName), "WARNING");
+                        return;
+                    }
+
+                    if (typeof downloadUrl !== 'string' || !downloadUrl) {
+                        pluginPrint(t("update.no_download_url", pluginName), "WARNING");
                         return;
                     }
 
                     // 使用版本比较函数比较版本号
                     const versionComparison = compareVersions(latestVersion, currentVersion);
-                    if (versionComparison > 0) {
+                    if (explicitTarget || versionComparison > 0) {
                         pluginPrint("================================================================================", "INFO");
-                        pluginPrint(`插件 ${pluginName} 有新版本: v${latestVersion} (当前版本: ${currentVersion})`);
-                        pluginPrint(`作者: ${author}`);
-                        pluginPrint(`更新时间: ${updateTime}`);
-                        pluginPrint(`更新内容: ${updateContent}`);
-                        pluginPrint(`下载地址: ${downloadUrl}`);
+                        pluginPrint(t(explicitTarget ? "update.target_version" : "update.new_version", pluginName, latestVersion, currentVersion));
+                        pluginPrint(t("update.author", author));
+                        pluginPrint(t("update.time", updateTime));
+                        pluginPrint(t("update.content", updateContent));
+                        pluginPrint(t("update.download_url", downloadUrl));
                         pluginPrint("================================================================================", "INFO");
 
                         // 如果启用了自动更新，则下载并更新插件
                         if (autoUpdate) {
-                            downloadAndUpdatePlugin(pluginName, `v${latestVersion}`, downloadUrl);
+                            downloadAndUpdatePlugin(pluginName, latestVersion, downloadUrl);
                         }
                     } else if (versionComparison < 0) {
-                        pluginPrint(`插件 ${pluginName} 的当前版本 ${currentVersion} 比最新版本 v${latestVersion} 更新`, "INFO");
+                        pluginPrint(t("update.newer_than_latest", pluginName, currentVersion, latestVersion), "INFO");
                     } else {
-                        pluginPrint(`插件 ${pluginName} 已是最新版本: ${currentVersion}`);
+                        pluginPrint(t("update.up_to_date", pluginName, currentVersion));
                     }
                 } catch (e) {
-                    pluginPrint(`解析插件 ${pluginName} 的更新信息时出错: ${e.message}`, "WARNING");
+                    pluginPrint(t("update.parse_error", pluginName, e.message), "WARNING");
                 } finally {
                     signalComplete();
                 }
             });
         } catch (e) {
-            pluginPrint(`检查插件 ${pluginName} 的更新时出错: ${e.message}`, "ERROR");
+            pluginPrint(t("update.check_error", pluginName, e.message), "ERROR");
             signalComplete();
         }
     } else {
-        pluginPrint(`未找到插件 ${pluginName} 的 update_url 字段，无法检查更新`, "WARNING");
+        pluginPrint(t("update.no_update_url", pluginName), "WARNING");
         signalComplete();
     }
 }
@@ -732,6 +1229,9 @@ function ensureDir(dir) {
     if (!File.exists(dir)) {
         File.createDir(dir);
     }
+    if (!File.exists(dir)) {
+        throw new Error(`Cannot create directory: ${dir}`);
+    }
 }
 
 /**
@@ -739,7 +1239,8 @@ function ensureDir(dir) {
  * @param {String} dirPath 目录路径
  */
 function removeDir(dirPath) {
-    if (!File.exists(dirPath)) return;
+    if (!File.exists(dirPath)) return true;
+    let removed = true;
     try {
         const entries = File.getFilesList(dirPath);
         for (const entry of entries) {
@@ -750,14 +1251,76 @@ function removeDir(dirPath) {
                     File.delete(fullPath);
                 } catch (e) {
                     // 可能是目录，递归删除
-                    removeDir(fullPath);
+                    if (!removeDir(fullPath)) removed = false;
                 }
+                if (File.exists(fullPath) && !removeDir(fullPath)) removed = false;
             }
         }
         // 删除空目录自身
         try { File.delete(dirPath); } catch (e) { /* 忽略 */ }
     } catch (e) {
-        pluginPrint(`清理目录 ${dirPath} 时出错: ${e.message}`, "WARNING");
+        pluginPrint(t("download.clean_dir_error", dirPath, e.message), "WARNING");
+        removed = false;
+    }
+    if (File.exists(dirPath)) removed = false;
+    return removed;
+}
+
+/**
+ * 递归复制文件或目录，失败时抛出异常
+ * @returns {Number} 已复制的文件数量
+ */
+function copyPathRecursive(sourcePath, destinationPath) {
+    let entries = null;
+    try {
+        const listed = File.getFilesList(sourcePath);
+        if (Array.isArray(listed)) entries = listed;
+    } catch (e) {
+        entries = null;
+    }
+
+    if (entries !== null && entries.length > 0) {
+        ensureDir(destinationPath);
+        let copiedCount = 0;
+        for (const entry of entries) {
+            copiedCount += copyPathRecursive(`${sourcePath}/${entry}`, `${destinationPath}/${entry}`);
+        }
+        return copiedCount;
+    }
+
+    // 文件和空目录都可能返回空列表，先尝试按文件复制
+    try {
+        if (File.exists(destinationPath)) {
+            File.delete(destinationPath);
+            if (File.exists(destinationPath)) throw new Error(`Cannot remove destination: ${destinationPath}`);
+        }
+        File.copy(sourcePath, destinationPath);
+        if (!File.exists(destinationPath)) {
+            throw new Error(`Copy did not create destination: ${destinationPath}`);
+        }
+        return 1;
+    } catch (copyError) {
+        // 空目录和读取失败的文件都可能返回空列表，再用读取操作确认类型
+        if (entries !== null) {
+            let readableAsFile = false;
+            try {
+                File.readFrom(sourcePath);
+                readableAsFile = true;
+            } catch (e) { }
+            if (readableAsFile) throw copyError;
+
+            if (File.exists(destinationPath)) {
+                try {
+                    File.getFilesList(destinationPath);
+                } catch (e) {
+                    File.delete(destinationPath);
+                    if (File.exists(destinationPath)) throw copyError;
+                }
+            }
+            ensureDir(destinationPath);
+            return 0;
+        }
+        throw copyError;
     }
 }
 
@@ -775,21 +1338,21 @@ function extractZip(zipPath, destDir, onComplete) {
     const tarCmd = `tar -xf "${zipPath}" -C "${destDir}"`;
     system.cmd(tarCmd, (exitCode, output) => {
         if (exitCode === 0) {
-            pluginPrint(`已使用 tar 解压完成`, "INFO");
+            pluginPrint(t("download.tar_done"), "INFO");
             onComplete(null);
             return;
         }
 
         // tar 失败，尝试 PowerShell
-        pluginPrint(`tar 解压失败(exit=${exitCode})，尝试 PowerShell...`, "INFO");
+        pluginPrint(t("download.tar_failed", exitCode), "INFO");
         const psCmd = `powershell -Command "Expand-Archive -Path '${zipPath}' -DestinationPath '${destDir}' -Force"`;
         system.cmd(psCmd, (exitCode2, output2) => {
             if (exitCode2 === 0) {
-                pluginPrint(`已使用 PowerShell 解压完成`, "INFO");
+                pluginPrint(t("download.ps_done"), "INFO");
                 onComplete(null);
             } else {
-                pluginPrint(`PowerShell 解压也失败(exit=${exitCode2}): ${output2}`, "ERROR");
-                onComplete(`解压失败: tar 和 PowerShell 均无法解压`);
+                pluginPrint(t("download.ps_failed", exitCode2, output2), "ERROR");
+                onComplete(t("download.extract_failed"));
             }
         });
     });
@@ -801,7 +1364,7 @@ function extractZip(zipPath, destDir, onComplete) {
  * @param {String} targetPluginDir 目标插件目录
  * @param {String} pluginName 插件名称
  */
-function installFromExtract(extractDir, targetPluginDir, pluginName) {
+function installFromExtract(extractDir, targetPluginDir, pluginName, backupDir) {
     // 查找源根目录：若解压后只有一个子目录，以该子目录为源根
     let sourceRoot = extractDir;
     try {
@@ -810,66 +1373,64 @@ function installFromExtract(extractDir, targetPluginDir, pluginName) {
         const topFiles = [];
         for (const entry of entries) {
             const fullPath = `${extractDir}/${entry}`;
-            if (File.exists(fullPath)) {
-                // 通过是否有扩展名简单区分文件和目录
-                if (entry.includes('.')) {
-                    topFiles.push(entry);
-                } else {
+            try {
+                const childEntries = File.getFilesList(fullPath);
+                if (Array.isArray(childEntries) && (childEntries.length > 0 || !entry.includes('.'))) {
                     topDirs.push(entry);
+                } else {
+                    topFiles.push(entry);
                 }
+            } catch (e) {
+                topFiles.push(entry);
             }
         }
-        if (topDirs.length === 1 && topFiles.length <= 1) {
+        if (topDirs.length === 1 && topFiles.length === 0) {
             // 典型 GitHub Release ZIP 结构：外层一个文件夹
             sourceRoot = `${extractDir}/${topDirs[0]}`;
-            pluginPrint(`检测到压缩包根目录: ${topDirs[0]}`, "INFO");
+            pluginPrint(t("download.detect_root", topDirs[0]), "INFO");
         }
     } catch (e) {
-        pluginPrint(`扫描解压目录时出错: ${e.message}`, "WARNING");
+        pluginPrint(t("download.scan_error", e.message), "WARNING");
     }
 
-    // 确保目标插件目录存在
-    ensureDir(targetPluginDir);
+    const targetExisted = File.exists(targetPluginDir);
+    if (targetExisted) {
+        if (File.exists(backupDir) && !removeDir(backupDir)) {
+            throw new Error(`Cannot clean backup directory: ${backupDir}`);
+        }
+        copyPathRecursive(targetPluginDir, backupDir);
+        pluginPrint(t("download.backup_dir_done", backupDir), "INFO");
+    }
 
-    // 复制所有文件
     try {
         const sourceFiles = File.getFilesList(sourceRoot);
+        if (!Array.isArray(sourceFiles) || sourceFiles.length === 0) {
+            throw new Error(t("download.install_empty"));
+        }
+
+        ensureDir(targetPluginDir);
         let copiedCount = 0;
         for (const fileName of sourceFiles) {
             const srcPath = `${sourceRoot}/${fileName}`;
             const dstPath = `${targetPluginDir}/${fileName}`;
-            try {
-                if (File.exists(dstPath)) {
-                    // 如果是目录，跳过（LSE File API 不支持目录级操作）
-                    // 先尝试删除再复制
-                    try { File.delete(dstPath); } catch (e) { /* 可能为目录 */ }
-                }
-                File.copy(srcPath, dstPath);
-                copiedCount++;
-                pluginPrint(`  复制: ${fileName}`, "INFO");
-            } catch (copyErr) {
-                // 可能是子目录，尝试递归复制
-                if (File.exists(srcPath)) {
-                    try {
-                        const subFiles = File.getFilesList(srcPath);
-                        ensureDir(dstPath);
-                        for (const subFile of subFiles) {
-                            const subSrc = `${srcPath}/${subFile}`;
-                            const subDst = `${dstPath}/${subFile}`;
-                            try {
-                                if (File.exists(subDst)) { try { File.delete(subDst); } catch (e) { } }
-                                File.copy(subSrc, subDst);
-                                copiedCount++;
-                                pluginPrint(`  复制: ${fileName}/${subFile}`, "INFO");
-                            } catch (e2) { /* 忽略深层错误 */ }
-                        }
-                    } catch (e2) { /* 忽略无法处理的条目 */ }
-                }
-            }
+            const entryCount = copyPathRecursive(srcPath, dstPath);
+            copiedCount += entryCount;
+            pluginPrint(t("download.copy", fileName), "INFO");
         }
-        pluginPrint(`已安装 ${copiedCount} 个文件到 ${targetPluginDir}`, "SUCCESS");
+        if (copiedCount === 0) throw new Error(t("download.install_empty"));
+        pluginPrint(t("download.installed", copiedCount, targetPluginDir), "SUCCESS");
+        return copiedCount;
     } catch (e) {
-        pluginPrint(`复制文件时出错: ${e.message}`, "ERROR");
+        try {
+            if (File.exists(targetPluginDir) && !removeDir(targetPluginDir)) {
+                throw new Error(`Cannot remove failed installation: ${targetPluginDir}`);
+            }
+            if (targetExisted) copyPathRecursive(backupDir, targetPluginDir);
+            pluginPrint(t("download.rollback_done"), "WARNING");
+        } catch (rollbackError) {
+            pluginPrint(t("download.rollback_failed", rollbackError.message), "ERROR");
+        }
+        throw new Error(t("download.copy_error", e.message));
     }
 }
 
@@ -879,45 +1440,116 @@ function installFromExtract(extractDir, targetPluginDir, pluginName) {
  * @param {String} url 下载链接
  * @param {String} destPath 目标文件路径
  * @param {Function} onComplete 完成回调(err)
+ * @param {Boolean} allowTextFallback 是否允许使用文本型 httpGet 回退
  */
-function downloadFile(url, destPath, onComplete) {
-    pluginPrint(`正在下载: ${url}`, "INFO");
+function downloadFile(url, destPath, onComplete, allowTextFallback = true) {
+    pluginPrint(t("download.downloading", url), "INFO");
+
+    if (typeof url !== 'string' || !/^https?:\/\/[A-Za-z0-9._~:/?#\[\]@!&'()*+,;=%-]+$/i.test(url)) {
+        onComplete(t("download.invalid_url", url));
+        return;
+    }
+
+    if (File.exists(destPath)) {
+        try {
+            File.delete(destPath);
+            if (File.exists(destPath)) throw new Error(`Cannot remove old download: ${destPath}`);
+        } catch (e) {
+            onComplete(t("download.write_failed", e.message));
+            return;
+        }
+    }
 
     // 使用 curl -L 下载（自动跟随重定向，Windows 10+ 和 Linux 通用）
-    const curlCmd = `curl -L -o "${destPath}" "${url}"`;
+    const curlCmd = `curl --fail --location --silent --show-error -o "${destPath}" "${url}"`;
     system.cmd(curlCmd, (exitCode, output) => {
         if (exitCode === 0 && File.exists(destPath)) {
-            const fileSize = File.readFrom(destPath).length;
-            pluginPrint(`curl 下载完成: ${destPath} (${fileSize} bytes)`, "INFO");
+            let fileSize = "unknown";
+            try {
+                const downloadedContent = File.readFrom(destPath);
+                if (downloadedContent != null) fileSize = downloadedContent.length;
+            } catch (e) { }
+            pluginPrint(t("download.curl_done", destPath, fileSize), "INFO");
             onComplete(null);
             return;
         }
 
-        pluginPrint(`curl 下载失败(exit=${exitCode})，尝试 network.httpGet...`, "INFO");
+        pluginPrint(t("download.curl_failed", exitCode), "INFO");
+
+        if (!allowTextFallback) {
+            if (File.exists(destPath)) {
+                try { File.delete(destPath); } catch (e) { }
+            }
+            onComplete(t("download.binary_need_curl"));
+            return;
+        }
 
         // 回退：使用 network.httpGet（适用于不重定向的链接）
         network.httpGet(url, (status, response) => {
             if (status === 200) {
                 try {
                     File.writeTo(destPath, response);
-                    pluginPrint(`httpGet 下载完成: ${destPath}`, "INFO");
+                    pluginPrint(t("download.httpget_done", destPath), "INFO");
                     onComplete(null);
                 } catch (e) {
-                    onComplete(`写入文件失败: ${e.message}`);
+                    onComplete(t("download.write_failed", e.message));
                 }
                 return;
             }
 
             // 如果是 302/301 重定向，curl 已失败，不再重试
             if (status === 302 || status === 301) {
-                pluginPrint(`GitHub Release 需要跟随重定向，但 curl 不可用`, "ERROR");
-                pluginPrint(`请确保服务器已安装 curl (Windows 10+ 自带)`, "ERROR");
-                onComplete(`下载失败: HTTP ${status} (curl 不可用，无法跟随重定向)`);
+                pluginPrint(t("download.need_redirect"), "ERROR");
+                pluginPrint(t("download.install_curl"), "ERROR");
+                onComplete(t("download.fail_no_curl", status));
             } else {
-                onComplete(`下载失败: HTTP ${status}`);
+                onComplete(t("download.failed", status));
             }
         });
     });
+}
+
+function reloadPluginAfterUpdate(pluginName) {
+    setTimeout(() => {
+        try {
+            const result = mc.runcmdEx(`ll reload "${pluginName}"`);
+            if (!result || result.success !== true) {
+                const output = result && result.output ? result.output : "command returned failure";
+                throw new Error(output);
+            }
+            pluginPrint(t("download.reloaded", pluginName), "SUCCESS");
+        } catch (error) {
+            pluginPrint(t("download.reload_failed", error.message), "ERROR");
+            pluginPrint(t("download.reload_manual", pluginName), "WARNING");
+        }
+    }, 1000);
+}
+
+function findPluginScriptPath(rootDir, pluginName, depth = 0) {
+    if (depth > 4) return null;
+    let entries;
+    try {
+        entries = File.getFilesList(rootDir);
+    } catch (e) {
+        return null;
+    }
+    if (!Array.isArray(entries)) return null;
+
+    const expectedName = `${pluginName}.js`.toLowerCase();
+    for (const entry of entries) {
+        if (entry.toLowerCase() === expectedName) return `${rootDir}/${entry}`;
+    }
+    for (const entry of entries) {
+        if (entry.toLowerCase().endsWith('.js') && entry.toLowerCase().includes(pluginName.toLowerCase())) {
+            return `${rootDir}/${entry}`;
+        }
+    }
+    for (const entry of entries) {
+        if (entry === '_temp') continue;
+        const nestedPath = findPluginScriptPath(`${rootDir}/${entry}`, pluginName, depth + 1);
+        if (nestedPath) return nestedPath;
+    }
+    return null;
 }
 
 /**
@@ -929,15 +1561,25 @@ function downloadFile(url, destPath, onComplete) {
  */
 function downloadAndUpdatePlugin(pluginName, version, downloadUrl) {
     try {
-        pluginPrint(`正在从 ${downloadUrl} 下载插件 ${pluginName} 版本 ${version}...`);
+        if (typeof pluginName !== 'string' || pluginName === '_temp' || /[\\/:*?"<>|\r\n]/.test(pluginName)) {
+            pluginPrint(t("download.invalid_plugin_name", pluginName), "ERROR");
+            return;
+        }
+        if (typeof downloadUrl !== 'string') {
+            pluginPrint(t("download.invalid_url", downloadUrl), "ERROR");
+            return;
+        }
+        pluginPrint(t("download.from_url", downloadUrl, pluginName, version));
 
         const isZip = downloadUrl.toLowerCase().endsWith('.zip') ||
             downloadUrl.toLowerCase().includes('.zip?');
 
         // 临时目录和文件路径
         const tempBaseDir = `./plugins/_temp`;
-        const tempWorkDir = `${tempBaseDir}/${pluginName}`;
+        const safeTempName = pluginName.replace(/[^0-9A-Za-z_.-]/g, '_');
+        const tempWorkDir = `${tempBaseDir}/${safeTempName}`;
         const extractDir = `${tempWorkDir}/extract`;
+        const backupDir = `${tempWorkDir}/backup`;
         const zipPath = `${tempWorkDir}/update.zip`;
 
         // 目标插件目录
@@ -946,17 +1588,18 @@ function downloadAndUpdatePlugin(pluginName, version, downloadUrl) {
         if (isZip) {
             // ── ZIP 流程 ──
             ensureDir(tempBaseDir);
+            removeDir(tempWorkDir);
             ensureDir(tempWorkDir);
 
             downloadFile(downloadUrl, zipPath, (err) => {
                 if (err) {
-                    pluginPrint(`下载插件 ${pluginName} 失败: ${err}`, "ERROR");
+                    pluginPrint(t("download.plugin_failed", pluginName, err), "ERROR");
                     removeDir(tempWorkDir);
                     return;
                 }
 
                 try {
-                    pluginPrint(`ZIP 已下载，正在解压...`);
+                    pluginPrint(t("download.extracting"));
 
                     // 解压
                     extractZip(zipPath, extractDir, (err) => {
@@ -966,13 +1609,18 @@ function downloadAndUpdatePlugin(pluginName, version, downloadUrl) {
                         }
 
                         if (err) {
-                            pluginPrint(`插件 ${pluginName} ${err}`, "ERROR");
+                            pluginPrint(t("download.update_error", pluginName, err), "ERROR");
                             removeDir(tempWorkDir);
                             return;
                         }
 
-                        // 安装文件
-                        installFromExtract(extractDir, targetPluginDir, pluginName);
+                        try {
+                            installFromExtract(extractDir, targetPluginDir, pluginName, backupDir);
+                        } catch (installError) {
+                            pluginPrint(t("download.update_error", pluginName, installError.message), "ERROR");
+                            removeDir(tempWorkDir);
+                            return;
+                        }
 
                         // 清理临时目录
                         removeDir(tempWorkDir);
@@ -983,26 +1631,19 @@ function downloadAndUpdatePlugin(pluginName, version, downloadUrl) {
                             }
                         } catch (e) { }
 
-                        pluginPrint(`插件 ${pluginName} 已更新到 v${version}，正在重载插件...`, "INFO");
-
-                        setTimeout(() => {
-                            try {
-                                mc.runcmdEx(`ll reload ${pluginName}`);
-                                pluginPrint(`插件 ${pluginName} 已重载`, "SUCCESS");
-                            } catch (error) {
-                                pluginPrint(`重载插件失败: ${error.message}`, "ERROR");
-                                pluginPrint(`请手动执行: ll reload ${pluginName}`, "WARNING");
-                            }
-                        }, 1000);
+                        pluginPrint(t("download.updated_reloading", pluginName, version), "INFO");
+                        reloadPluginAfterUpdate(pluginName);
                     });
                 } catch (e) {
-                    pluginPrint(`更新插件 ${pluginName} 时出错: ${e.message}`, "ERROR");
+                    pluginPrint(t("download.update_error", pluginName, e.message), "ERROR");
                     removeDir(tempWorkDir);
                 }
-            });
+            }, false);
         } else {
             // ── 单文件流程（兼容旧格式） ──
-            const tempDir = tempBaseDir;
+            const tempDir = tempWorkDir;
+            ensureDir(tempBaseDir);
+            removeDir(tempDir);
             ensureDir(tempDir);
 
             let fileName = downloadUrl.split('/').pop();
@@ -1010,98 +1651,108 @@ function downloadAndUpdatePlugin(pluginName, version, downloadUrl) {
             if (fileName.includes('?')) {
                 fileName = fileName.split('?')[0];
             }
-            if (!fileName || !fileName.includes('.')) {
+            if (!fileName || !fileName.includes('.') || fileName === '.' || fileName === '..') {
                 fileName = `${pluginName}-${version}.js`;
             }
+            fileName = fileName.replace(/[^0-9A-Za-z_.-]/g, '_');
 
             const tempFile = `${tempDir}/${fileName}`;
             downloadFile(downloadUrl, tempFile, (err) => {
                 if (err) {
-                    pluginPrint(`下载插件 ${pluginName} 失败: ${err}`, "ERROR");
+                    pluginPrint(t("download.plugin_failed", pluginName, err), "ERROR");
+                    removeDir(tempWorkDir);
                     return;
                 }
 
                 try {
                     // 查找插件文件路径
                     const pluginsDir = "./plugins";
-                    let pluginFilePath;
-
-                    const files = File.getFilesList(pluginsDir);
-                    for (const file of files) {
-                        if (file === pluginName || file.toLowerCase() === pluginName.toLowerCase()) {
-                            const pluginDir = `${pluginsDir}/${file}`;
-                            if (File.exists(pluginDir)) {
-                                const pluginFiles = File.getFilesList(pluginDir);
-                                for (const pluginFile of pluginFiles) {
-                                    if (pluginFile === `${pluginName}.js` || pluginFile.toLowerCase() === `${pluginName.toLowerCase()}.js`) {
-                                        pluginFilePath = `${pluginDir}/${pluginFile}`;
-                                        break;
-                                    }
-                                }
-                            }
-                            if (pluginFilePath) break;
-                        }
-                        if (file.toLowerCase().includes(pluginName.toLowerCase())) {
-                            const pluginDir = `${pluginsDir}/${file}`;
-                            if (File.exists(pluginDir)) {
-                                const pluginFiles = File.getFilesList(pluginDir);
-                                for (const pluginFile of pluginFiles) {
-                                    if (pluginFile.toLowerCase().includes(pluginName.toLowerCase()) && pluginFile.endsWith('.js')) {
-                                        pluginFilePath = `${pluginDir}/${pluginFile}`;
-                                        break;
-                                    }
-                                }
-                            }
-                            if (pluginFilePath) break;
-                        }
-                    }
+                    const pluginFilePath = findPluginScriptPath(pluginsDir, pluginName);
 
                     if (pluginFilePath) {
                         const backupPath = pluginFilePath + '.bak';
+                        const stagedPath = pluginFilePath + '.update.tmp';
                         try {
+                            if (File.exists(stagedPath)) File.delete(stagedPath);
+                            if (File.exists(stagedPath)) throw new Error(`Cannot remove old staging file: ${stagedPath}`);
+                            File.copy(tempFile, stagedPath);
+                            if (!File.exists(stagedPath)) throw new Error(`Cannot stage update at ${stagedPath}`);
+
+                            if (File.exists(backupPath)) File.delete(backupPath);
+                            if (File.exists(backupPath)) throw new Error(`Cannot remove old backup: ${backupPath}`);
                             File.copy(pluginFilePath, backupPath);
-                            pluginPrint(`已备份旧文件到 ${backupPath}`);
+                            if (!File.exists(backupPath)) throw new Error(`Cannot create backup at ${backupPath}`);
+                            pluginPrint(t("download.backed_up", backupPath));
                         } catch (backupError) {
-                            pluginPrint(`备份文件失败: ${backupError.message}`, "WARNING");
+                            pluginPrint(t("download.backup_failed", backupError.message), "WARNING");
+                            if (File.exists(stagedPath)) {
+                                try { File.delete(stagedPath); } catch (e) { }
+                            }
+                            if (File.exists(tempFile)) {
+                                try { File.delete(tempFile); } catch (e) { }
+                            }
+                            removeDir(tempWorkDir);
+                            return;
                         }
 
-                        if (File.exists(pluginFilePath)) {
+                        try {
                             File.delete(pluginFilePath);
+                            if (File.exists(pluginFilePath)) throw new Error(`Cannot remove ${pluginFilePath}`);
+                            File.copy(stagedPath, pluginFilePath);
+                            if (!File.exists(pluginFilePath)) throw new Error(`Cannot replace ${pluginFilePath}`);
+                        } catch (replaceError) {
+                            try {
+                                if (File.exists(pluginFilePath)) File.delete(pluginFilePath);
+                                if (File.exists(pluginFilePath)) throw new Error(`Cannot remove failed update: ${pluginFilePath}`);
+                                File.copy(backupPath, pluginFilePath);
+                                pluginPrint(t("download.rollback_done"), "WARNING");
+                            } catch (rollbackError) {
+                                pluginPrint(t("download.rollback_failed", rollbackError.message), "ERROR");
+                            }
+                            pluginPrint(t("download.update_error", pluginName, replaceError.message), "ERROR");
+                            if (File.exists(stagedPath)) {
+                                try { File.delete(stagedPath); } catch (e) { }
+                            }
+                            if (File.exists(tempFile)) {
+                                try { File.delete(tempFile); } catch (e) { }
+                            }
+                            removeDir(tempWorkDir);
+                            return;
                         }
-                        File.copy(tempFile, pluginFilePath);
-                        pluginPrint(`已更新插件文件: ${pluginFilePath}`);
+                        pluginPrint(t("download.file_updated", pluginFilePath));
 
+                        if (File.exists(stagedPath)) {
+                            File.delete(stagedPath);
+                        }
                         if (File.exists(tempFile)) {
                             File.delete(tempFile);
                         }
+                        removeDir(tempWorkDir);
 
-                        pluginPrint(`插件 ${pluginName} 已更新，正在重载插件...`, "INFO");
+                        pluginPrint(t("download.updated_reloading", pluginName, version), "INFO");
 
-                        setTimeout(() => {
-                            try {
-                                mc.runcmdEx(`ll reload ${pluginName}`);
-                                pluginPrint(`插件 ${pluginName} 已重载`, "SUCCESS");
-                            } catch (error) {
-                                pluginPrint(`重载插件失败: ${error.message}`, "ERROR");
-                                pluginPrint(`请手动执行: ll reload ${pluginName}`, "WARNING");
-                            }
-                        }, 1000);
+                        reloadPluginAfterUpdate(pluginName);
                     } else {
-                        pluginPrint(`无法找到插件 ${pluginName} 的文件路径`, "WARNING");
+                        pluginPrint(t("download.no_file_path", pluginName), "WARNING");
+                        if (File.exists(tempFile)) {
+                            try { File.delete(tempFile); } catch (e) { }
+                        }
+                        removeDir(tempWorkDir);
                     }
                 } catch (e) {
-                    pluginPrint(`更新插件 ${pluginName} 时出错: ${e.message}`, "ERROR");
+                    pluginPrint(t("download.update_error", pluginName, e.message), "ERROR");
+                    removeDir(tempWorkDir);
                 }
             });
         }
     } catch (e) {
-        pluginPrint(`从URL下载插件 ${pluginName} 时出错: ${e.message}`, "ERROR");
+        pluginPrint(t("download.url_error", pluginName, e.message), "ERROR");
     }
 }
 
 /**
  * 重载插件
- * @returns {Array} 重载结果
+ * @returns {String} 重载结果
  */
 function ReloadPlugin() {
     try {
@@ -1109,24 +1760,75 @@ function ReloadPlugin() {
         const configPath = `${plugin_path}/config/${plugin_name}.json`;
         if (File.exists(configPath)) {
             const configContent = File.readFrom(configPath);
-            pluginConfig = JSON.parse(configContent);
-            pluginPrint("配置文件已重新加载", "SUCCESS");
+            const reloadedConfig = JSON.parse(configContent);
+            if (!reloadedConfig || typeof reloadedConfig !== 'object' || Array.isArray(reloadedConfig)) {
+                throw new Error("Configuration root must be an object");
+            }
+            pluginConfig = reloadedConfig;
+            applyConfiguredLanguage();
+            if (bstatsInstance) bstatsInstance.syncConfig();
+            scheduleUpdateChecks();
+            pluginPrint(t("config.reloaded"), "SUCCESS");
         } else {
-            pluginPrint("配置文件不存在，使用默认配置", "WARNING");
+            pluginPrint(t("config.not_exist"), "WARNING");
+            return `${t("config.file_path", configPath)}\n${t("config.not_exist")}`;
         }
 
-        return [`配置文件: ${configPath}`, "重载成功"];
+        return `${t("config.file_path", configPath)}\n${t("config.reload_success")}`;
     } catch (e) {
-        pluginPrint(`重载插件失败: ${e.message}`, "ERROR");
-        return [`重载失败: ${e.message}`];
+        pluginPrint(t("config.reload_failed", e.message), "ERROR");
+        return t("config.reload_failed", e.message);
     }
+}
+
+function saveRuntimeConfig() {
+    if (!pluginConfig) return;
+    try {
+        const configPath = `${plugin_path}/config/${plugin_name}.json`;
+        File.writeTo(configPath, JSON.stringify(pluginConfig, null, 4));
+    } catch (e) {
+        pluginPrint(t("config.reload_failed", e.message), "WARNING");
+    }
+}
+
+function recordLastCheckTime() {
+    if (!pluginConfig) return;
+    pluginConfig.last_check_time = Math.floor(Date.now() / 1000);
+    saveRuntimeConfig();
+}
+
+function scheduleUpdateChecks() {
+    if (initialUpdateCheckTimer !== null) {
+        clearTimeout(initialUpdateCheckTimer);
+        initialUpdateCheckTimer = null;
+    }
+    if (recurringUpdateCheckTimer !== null) {
+        clearInterval(recurringUpdateCheckTimer);
+        recurringUpdateCheckTimer = null;
+    }
+
+    if (!pluginConfig || !pluginConfig.check_update_on_load) return;
+
+    let delay = Number(pluginConfig.check_delay);
+    if (!Number.isFinite(delay) || delay < 0) delay = 10;
+    let interval = Number(pluginConfig.check_interval);
+    if (!Number.isFinite(interval) || interval <= 0) interval = 1800;
+
+    pluginPrint(t("update.auto_check_delay", delay));
+    initialUpdateCheckTimer = setTimeout(() => {
+        initialUpdateCheckTimer = null;
+        checkAllPluginsUpdate();
+        recurringUpdateCheckTimer = setInterval(() => {
+            checkAllPluginsUpdate();
+        }, interval * 1000);
+    }, delay * 1000);
 }
 
 /**
  * 检查所有插件的更新
  */
 function checkAllPluginsUpdate() {
-    pluginPrint("正在检查所有插件的更新...");
+    pluginPrint(t("update.checking_all"));
 
     // 获取所有已加载的插件
     const plugins = ll.listPlugins();
@@ -1145,7 +1847,8 @@ function checkAllPluginsUpdate() {
             checkPluginUpdate(pluginName, currentVersion, false, pluginInfo, () => {
                 pending--;
                 if (pending === 0) {
-                    pluginPrint(`检查完成，共检查了 ${checkedCount} 个支持更新检查的插件`, "SUCCESS");
+                    recordLastCheckTime();
+                    pluginPrint(t("update.check_done", checkedCount), "SUCCESS");
                 }
             });
         }
@@ -1153,7 +1856,8 @@ function checkAllPluginsUpdate() {
 
     // 边界情况：没有任何插件支持更新检查
     if (pending === 0) {
-        pluginPrint("没有找到支持更新检查的插件", "INFO");
+        recordLastCheckTime();
+        pluginPrint(t("update.no_plugins"), "INFO");
     }
 }
 
@@ -1164,7 +1868,7 @@ function checkAllPluginsUpdate() {
  */
 function RegisterCmd() {
     // 注册checkupdate指令
-    const checkupdate_cmd = mc.newCommand("checkupdate", "检查插件更新", PermType.GameMasters);
+    const checkupdate_cmd = mc.newCommand("checkupdate", t("command.desc"), PermType.GameMasters);
     checkupdate_cmd.setAlias("ecu"); // 设置别名
 
     // 设置枚举
@@ -1200,20 +1904,20 @@ function RegisterCmd() {
         if (origin.typeName == "Player") {
             const pl = mc.getPlayer(origin.player.realName);
             if (!pl.isOP()) {
-                pl.tell("§c你没有权限使用此命令");
+                pl.tell("§c" + t("command.no_permission"));
                 return output.success();
             }
         }
 
         // 处理命令
         // 检查是否有动作参数
-        if (!results.action) {
+        if (!results.action && !results.plugin) {
             // 无参数，显示帮助信息
             if (origin.typeName == "Player") {
                 const pl = mc.getPlayer(origin.player.realName);
-                pl.tell("§a[EasyCheckUpdate] §f命令帮助:\n/checkupdate - 显示此帮助信息\n/checkupdate all - 检查所有插件的更新\n/checkupdate reload - 重载插件\n/checkupdate <插件名称> - 检查指定插件的更新\n/checkupdate update <插件名称> [版本号] - 更新指定插件\n/checkupdate info <插件名称> [版本号] - 查看版本列表或版本详情");
+                pl.tell("§a[EasyCheckUpdate] §f" + t("command.help"));
             } else {
-                pluginPrint("命令帮助:\n/checkupdate - 显示此帮助信息\n/checkupdate all - 检查所有插件的更新\n/checkupdate reload - 重载插件\n/checkupdate <插件名称> - 检查指定插件的更新\n/checkupdate update <插件名称> [版本号] - 更新指定插件\n/checkupdate info <插件名称> [版本号] - 查看版本列表或版本详情");
+                pluginPrint(t("command.help"));
             }
             return output.success();
         }
@@ -1234,9 +1938,9 @@ function RegisterCmd() {
             if (!pluginName) {
                 if (origin.typeName == "Player") {
                     const pl = mc.getPlayer(origin.player.realName);
-                    pl.tell("§c用法: /checkupdate update <插件名称> [版本号]");
+                    pl.tell("§c" + t("command.update_usage"));
                 } else {
-                    pluginPrint("用法: /checkupdate update <插件名称> [版本号]");
+                    pluginPrint(t("command.update_usage"));
                 }
                 return output.success();
             }
@@ -1245,17 +1949,17 @@ function RegisterCmd() {
             const pluginInfo = getPluginUpdateInfo(pluginName);
             if (pluginInfo) {
                 const currentVersion = pluginInfo.plugin_version || "unknown";
-                checkPluginUpdate(pluginName, currentVersion, true, null, null, targetVer);
+                checkPluginUpdate(pluginName, currentVersion, true, pluginInfo, null, targetVer);
                 if (origin.typeName == "Player") {
                     const pl = mc.getPlayer(origin.player.realName);
-                    pl.tell(`§a正在检查并更新插件 ${pluginName}，请查看控制台获取详细信息`);
+                    pl.tell(`§a` + t("command.checking_update", pluginName));
                 }
             } else {
                 if (origin.typeName == "Player") {
                     const pl = mc.getPlayer(origin.player.realName);
-                    pl.tell(`§c未找到插件: ${pluginName}`);
+                    pl.tell(`§c` + t("command.plugin_not_found", pluginName));
                 } else {
-                    pluginPrint(`未找到插件: ${pluginName}`, "ERROR");
+                    pluginPrint(t("command.plugin_not_found", pluginName), "ERROR");
                 }
             }
             return output.success();
@@ -1266,9 +1970,9 @@ function RegisterCmd() {
             if (!pluginName) {
                 if (origin.typeName == "Player") {
                     const pl = mc.getPlayer(origin.player.realName);
-                    pl.tell("§c用法: /checkupdate info <插件名称> [版本号]");
+                    pl.tell("§c" + t("command.info_usage"));
                 } else {
-                    pluginPrint("用法: /checkupdate info <插件名称> [版本号]");
+                    pluginPrint(t("command.info_usage"));
                 }
                 return output.success();
             }
@@ -1277,9 +1981,9 @@ function RegisterCmd() {
             if (!pluginInfo || !pluginInfo.update_url) {
                 if (origin.typeName == "Player") {
                     const pl = mc.getPlayer(origin.player.realName);
-                    pl.tell(`§c未找到插件: ${pluginName}`);
+                    pl.tell(`§c` + t("command.plugin_not_found", pluginName));
                 } else {
-                    pluginPrint(`未找到插件: ${pluginName}`, "ERROR");
+                    pluginPrint(t("command.plugin_not_found", pluginName), "ERROR");
                 }
                 return output.success();
             }
@@ -1287,13 +1991,13 @@ function RegisterCmd() {
             // 异步拉取版本信息
             network.httpGet(pluginInfo.update_url, (status, response) => {
                 if (status !== 200) {
-                    pluginPrint(`获取插件 ${pluginName} 的更新信息失败，状态码: ${status}`, "WARNING");
+                    pluginPrint(t("update.fetch_failed", pluginName, status), "WARNING");
                     return;
                 }
                 try {
                     const updateData = JSON.parse(response);
                     if (!updateData.versions || typeof updateData.versions !== 'object') {
-                        pluginPrint(`插件 ${pluginName} 的更新信息格式不正确`, "WARNING");
+                        pluginPrint(t("update.format_error", pluginName), "WARNING");
                         return;
                     }
                     const versions = updateData.versions;
@@ -1302,17 +2006,16 @@ function RegisterCmd() {
                         // 查看指定版本详情
                         const verInfo = versions[versionName];
                         if (!verInfo) {
-                            pluginPrint(`插件 ${pluginName} 未找到版本 v${versionName}`, "WARNING");
+                            pluginPrint(t("update.version_not_found", pluginName, versionName), "WARNING");
                             return;
                         }
-                        const tag = isPreRelease(versionName) ? "测试版" : "正式版";
-                        pluginPrint(`插件 ${pluginName} 版本 v${versionName} 的详细信息:`);
-                        pluginPrint(`  作者: ${verInfo.author || "未知作者"}`);
-                        pluginPrint(`  更新时间: ${verInfo.update_time || "未知时间"}`);
-                        pluginPrint(`  类型: ${tag}`);
-                        pluginPrint(`  更新内容:`);
-                        pluginPrint(`    ${verInfo.update_content || "无更新内容"}`);
-                        pluginPrint(`  下载地址: ${verInfo.download_url || "无"}`);
+                        const tag = t(isPreRelease(versionName) ? "general.pre_release" : "general.stable");
+                        pluginPrint(t("update.version_detail", pluginName, versionName));
+                        pluginPrint(t("update.author", verInfo.author || t("general.unknown_author")));
+                        pluginPrint(t("update.time", verInfo.update_time || t("general.unknown_time")));
+                        pluginPrint(t("update.type", tag));
+                        pluginPrint(t("update.content", verInfo.update_content || t("general.no_content")));
+                        pluginPrint(t("update.download_url", verInfo.download_url || t("general.none")));
                     } else {
                         // 显示版本列表
                         const currentVersion = pluginInfo.plugin_version || "unknown";
@@ -1320,15 +2023,15 @@ function RegisterCmd() {
                         printVersionList(pluginName, versions, currentVersion, null, userIsPre);
                     }
                 } catch (e) {
-                    pluginPrint(`解析版本信息时出错: ${e.message}`, "WARNING");
+                    pluginPrint(t("update.parse_version_error", e.message), "WARNING");
                 }
             });
             if (origin.typeName == "Player") {
                 const pl = mc.getPlayer(origin.player.realName);
                 if (versionName) {
-                    pl.tell(`§a正在查询插件 ${pluginName} 版本 v${versionName} 的详细信息，请查看控制台`);
+                    pl.tell(`§a` + t("command.querying_detail", pluginName, versionName));
                 } else {
-                    pl.tell(`§a正在查询插件 ${pluginName} 的版本列表，请查看控制台`);
+                    pl.tell(`§a` + t("command.querying_list", pluginName));
                 }
             }
             return output.success();
@@ -1337,7 +2040,7 @@ function RegisterCmd() {
             checkAllPluginsUpdate();
             if (origin.typeName == "Player") {
                 const pl = mc.getPlayer(origin.player.realName);
-                pl.tell("§a正在检查所有插件的更新，请查看控制台获取详细信息");
+                pl.tell("§a" + t("command.checking_all"));
             }
             return output.success();
         } else if (results.plugin) {
@@ -1350,14 +2053,14 @@ function RegisterCmd() {
                 checkPluginUpdate(pluginName, currentVersion);
                 if (origin.typeName == "Player") {
                     const pl = mc.getPlayer(origin.player.realName);
-                    pl.tell(`§a正在检查插件 ${pluginName} 的更新，请查看控制台获取详细信息`);
+                    pl.tell(`§a` + t("command.checking_plugin", pluginName));
                 }
             } else {
                 if (origin.typeName == "Player") {
                     const pl = mc.getPlayer(origin.player.realName);
-                    pl.tell(`§c未找到插件: ${pluginName}`);
+                    pl.tell(`§c` + t("command.plugin_not_found", pluginName));
                 } else {
-                    pluginPrint(`未找到插件: ${pluginName}`, "ERROR");
+                    pluginPrint(t("command.plugin_not_found", pluginName), "ERROR");
                 }
             }
             return output.success();
@@ -1365,9 +2068,9 @@ function RegisterCmd() {
             // 显示帮助信息
             if (origin.typeName == "Player") {
                 const pl = mc.getPlayer(origin.player.realName);
-                pl.tell("§a[EasyCheckUpdate] §f命令帮助:\n/checkupdate - 显示此帮助信息\n/checkupdate all - 检查所有插件的更新\n/checkupdate reload - 重载插件\n/checkupdate <插件名称> - 检查指定插件的更新\n/checkupdate update <插件名称> [版本号] - 更新指定插件\n/checkupdate info <插件名称> [版本号] - 查看版本列表或版本详情");
+                pl.tell("§a[EasyCheckUpdate] §f" + t("command.help"));
             } else {
-                pluginPrint("命令帮助:\n/checkupdate - 显示此帮助信息\n/checkupdate all - 检查所有插件的更新\n/checkupdate reload - 重载插件\n/checkupdate <插件名称> - 检查指定插件的更新\n/checkupdate update <插件名称> [版本号] - 更新指定插件\n/checkupdate info <插件名称> [版本号] - 查看版本列表或版本详情");
+                pluginPrint(t("command.help"));
             }
             return output.success();
         }
