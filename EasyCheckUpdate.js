@@ -3,7 +3,7 @@
 // 声明常量
 const plugin_name = "EasyCheckUpdate",
     plugin_name_smallest = "easycheckupdate",
-    plugin_version = "0.2.0-beta.6",
+    plugin_version = "0.2.0",
     plugin_description = "一个基于 LSE 的插件更新检查工具 / A plugin update checker based on LSE.",
     plugin_github_link = "https://github.com/MengHanLOVE1027/lse-easycheckupdate",
     plugin_minebbs_link = "https://www.minebbs.com/resources/easycheckupdate-ecu-lse.15501/",
@@ -14,8 +14,8 @@ const plugin_name = "EasyCheckUpdate",
 // 声明全局变量
 let pluginConfig = null;
 let bstatsInstance = null;
-// 定时器管理（LSE QuickJS 不支持 clearTimeout/clearInterval，使用标志位取消）
-let scheduleCancelled = false;
+// 定时器管理（LSE QuickJS 不支持 clearTimeout/clearInterval，使用代数计数器取消旧定时器）
+let scheduleGeneration = 0;
 // #endregion
 
 // TAG: I18N 国际化模块
@@ -1800,8 +1800,9 @@ function recordLastCheckTime() {
 }
 
 function scheduleUpdateChecks() {
-    // 取消之前的定时任务（LSE 不支持 clearTimeout，使用标志位）
-    scheduleCancelled = true;
+    // 取消之前的定时任务（LSE 不支持 clearTimeout，使用代数计数器）
+    scheduleGeneration++;
+    const myGeneration = scheduleGeneration;
 
     if (!pluginConfig || !pluginConfig.check_update_on_load) return;
 
@@ -1811,13 +1812,12 @@ function scheduleUpdateChecks() {
     if (!Number.isFinite(interval) || interval <= 0) interval = 1800;
 
     pluginPrint(t("update.auto_check_delay", delay));
-    scheduleCancelled = false;
     setTimeout(() => {
-        if (scheduleCancelled) return;
+        if (scheduleGeneration !== myGeneration) return;
         checkAllPluginsUpdate();
         // 启动定期检查
         const doInterval = () => {
-            if (scheduleCancelled) return;
+            if (scheduleGeneration !== myGeneration) return;
             checkAllPluginsUpdate();
             setTimeout(doInterval, interval * 1000);
         };
@@ -1868,36 +1868,20 @@ function checkAllPluginsUpdate() {
  * 注册指令
  */
 function RegisterCmd() {
-    // 注册checkupdate指令
+    // 注册checkupdate指令（使用 RawText 手动解析子命令，避免 BDS 解析裸 RawText 参数报错）
     const checkupdate_cmd = mc.newCommand("checkupdate", t("command.desc"), PermType.GameMasters);
     checkupdate_cmd.setAlias("ecu"); // 设置别名
 
-    // 设置枚举
-    checkupdate_cmd.setEnum("ReloadAction", ["reload"]); // 重载动作
-    checkupdate_cmd.setEnum("UpdateAction", ["update"]); // 更新动作
-    checkupdate_cmd.setEnum("AllAction", ["all"]); // 检查所有动作
-    checkupdate_cmd.setEnum("InfoAction", ["info"]); // 查看版本详情
-
-    // 设置参数
-    checkupdate_cmd.mandatory("action", ParamType.Enum, "ReloadAction", 1); // 重载动作参数
-    checkupdate_cmd.mandatory("action", ParamType.Enum, "UpdateAction", 1); // 更新动作参数
-    checkupdate_cmd.mandatory("action", ParamType.Enum, "AllAction", 1); // 检查所有动作参数
-    checkupdate_cmd.mandatory("action", ParamType.Enum, "InfoAction", 1); // 查看版本详情参数
-    checkupdate_cmd.optional("plugin", ParamType.RawText); // 可选插件名称参数
-    checkupdate_cmd.optional("version", ParamType.RawText); // 可选版本号参数
-    // info 子命令专用参数（独立于上面的可选 plugin/version）
-    checkupdate_cmd.mandatory("infoPlugin", ParamType.RawText);
-    checkupdate_cmd.optional("infoVersion", ParamType.RawText);
+    // 设置参数（统一使用 RawText，在回调中手动解析子命令）
+    checkupdate_cmd.mandatory("action", ParamType.RawText);
+    checkupdate_cmd.optional("target", ParamType.RawText);
+    checkupdate_cmd.optional("version", ParamType.RawText);
 
     // 设置overload
-    checkupdate_cmd.overload([]); // 无参数，显示帮助
-    checkupdate_cmd.overload(["ReloadAction"]); // 重载插件
-    checkupdate_cmd.overload(["AllAction"]); // 检查所有插件
-    checkupdate_cmd.overload(["UpdateAction", "plugin"]); // 更新指定插件
-    checkupdate_cmd.overload(["UpdateAction", "plugin", "version"]); // 更新到指定版本
-    checkupdate_cmd.overload(["InfoAction", "infoPlugin"]); // 查看插件版本列表
-    checkupdate_cmd.overload(["InfoAction", "infoPlugin", "infoVersion"]); // 查看指定版本详情
-    checkupdate_cmd.overload(["plugin"]); // 检查指定插件
+    checkupdate_cmd.overload([]);                              // /checkupdate → 帮助
+    checkupdate_cmd.overload(["action"]);                       // /checkupdate <reload|all|插件名>
+    checkupdate_cmd.overload(["action", "target"]);             // /checkupdate <update|info> <插件名>
+    checkupdate_cmd.overload(["action", "target", "version"]);  // /checkupdate update|info <插件名> <版本号>
 
     // 指令回调处理
     checkupdate_cmd.setCallback((_cmd, origin, output, results) => {
@@ -1910,10 +1894,10 @@ function RegisterCmd() {
             }
         }
 
-        // 处理命令
-        // 检查是否有动作参数
-        if (!results.action && !results.plugin) {
-            // 无参数，显示帮助信息
+        const action = results.action;
+
+        // 无参数 → 显示帮助
+        if (!action) {
             if (origin.typeName == "Player") {
                 const pl = mc.getPlayer(origin.player.realName);
                 pl.tell("§a[EasyCheckUpdate] §f" + t("command.help"));
@@ -1923,8 +1907,8 @@ function RegisterCmd() {
             return output.success();
         }
 
-        if (results.action === "reload") {
-            // 重载插件
+        // 子命令：reload
+        if (action === "reload") {
             const result = ReloadPlugin();
             if (origin.typeName == "Player") {
                 const pl = mc.getPlayer(origin.player.realName);
@@ -1933,9 +1917,21 @@ function RegisterCmd() {
                 pluginPrint(result);
             }
             return output.success();
-        } else if (results.action === "update") {
-            // 检查并自动更新指定插件（可指定目标版本）
-            const pluginName = results.plugin;
+        }
+
+        // 子命令：all
+        if (action === "all") {
+            checkAllPluginsUpdate();
+            if (origin.typeName == "Player") {
+                const pl = mc.getPlayer(origin.player.realName);
+                pl.tell("§a" + t("command.checking_all"));
+            }
+            return output.success();
+        }
+
+        // 子命令：update <插件名> [版本号]
+        if (action === "update") {
+            const pluginName = results.target;
             if (!pluginName) {
                 if (origin.typeName == "Player") {
                     const pl = mc.getPlayer(origin.player.realName);
@@ -1964,10 +1960,12 @@ function RegisterCmd() {
                 }
             }
             return output.success();
-        } else if (results.action === "info") {
-            // 查看插件版本信息：info <插件名> [版本号]
-            const pluginName = results.infoPlugin;
-            const versionName = results.infoVersion || null;
+        }
+
+        // 子命令：info <插件名> [版本号]
+        if (action === "info") {
+            const pluginName = results.target;
+            const versionName = results.version || null;
             if (!pluginName) {
                 if (origin.typeName == "Player") {
                     const pl = mc.getPlayer(origin.player.realName);
@@ -2036,17 +2034,11 @@ function RegisterCmd() {
                 }
             }
             return output.success();
-        } else if (results.action === "all") {
-            // 检查所有插件的更新
-            checkAllPluginsUpdate();
-            if (origin.typeName == "Player") {
-                const pl = mc.getPlayer(origin.player.realName);
-                pl.tell("§a" + t("command.checking_all"));
-            }
-            return output.success();
-        } else if (results.plugin) {
-            // 检查指定插件的更新（仅检查，不自动更新）
-            const pluginName = results.plugin;
+        }
+
+        // 默认：action 即插件名 → 检查指定插件更新
+        {
+            const pluginName = action;
             const pluginInfo = getPluginUpdateInfo(pluginName);
 
             if (pluginInfo) {
@@ -2063,15 +2055,6 @@ function RegisterCmd() {
                 } else {
                     pluginPrint(t("command.plugin_not_found", pluginName), "ERROR");
                 }
-            }
-            return output.success();
-        } else {
-            // 显示帮助信息
-            if (origin.typeName == "Player") {
-                const pl = mc.getPlayer(origin.player.realName);
-                pl.tell("§a[EasyCheckUpdate] §f" + t("command.help"));
-            } else {
-                pluginPrint(t("command.help"));
             }
             return output.success();
         }
