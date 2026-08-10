@@ -24,22 +24,29 @@ Powered by LeviLamina.<br>
 
 ## 📖 Introduction
 
-LSE-EasyCheckUpdate is a plugin update checker specifically designed for LeviLamina servers, aiming to simplify the plugin update process and improve server management efficiency. It supports automatic plugin update checking, batch plugin updates, version comparison, and detailed update logs, providing server administrators with a convenient plugin update solution.
+LSE-EasyCheckUpdate is a plugin update checker specifically designed for LeviLamina servers, aiming to simplify the plugin update process and improve server management efficiency. It supports automatic and batch update checks, smart version selection, targeted version installation, ZIP auto-extraction, config version migration, i18n internationalization, and detailed update logs — providing a one-stop plugin update solution for server administrators.
 
 ---
 
 ## ✨ Core Features
 
-| Feature              | Description                              |
-| ----------------- | --------------------------------- |
-| 🔄**Automatic Update Check** | Automatically check updates for all loaded plugins      |
-| 📦**Batch Update**     | Support batch update for multiple plugins              |
-| 📢**Real-time Notifications**     | Send notifications to administrators when updates are detected      |
-| ⚡**Fast Check**     | Efficient version comparison algorithm                |
-| 🔄**Version Comparison**     | Support complex version number comparison              |
-| 📝**Detailed Logs**     | Colored log output, daily log storage      |
-| 🌍**Multi-plugin Support**   | Support all plugins that export CheckUpdate function |
-| 📊**Telemetry Statistics**     | Integrated BStats for usage statistics          |
+| Feature | Description |
+| ---- | ---- |
+| 🔄 **Automatic Update Check** | Automatically check updates for all loaded plugins on load, with scheduled polling |
+| 🧠 **Smart Version Selection** | Stable users automatically skip pre-releases; pre-release users follow upgrade chain step by step |
+| 📋 **Version List** | View all available versions with stable/beta tags, current version and recommended markers |
+| 🔍 **Version Details** | View complete info for a specific version (author, time, content, download URL) |
+| 📦 **Batch Check** | Check all plugins that support EasyCheckUpdate at once |
+| 🎯 **Targeted Version Install** | Install any published version by number — supports upgrade, downgrade, or reinstall |
+| 📦 **ZIP Auto-Extraction** | Auto-download GitHub Release ZIP, smart root detection, extract and install all files |
+| 🔗 **302 Redirect Handling** | Uses curl -L to automatically follow GitHub Release download redirects, with httpGet fallback |
+| ⚙️ **Config Version Migration** | Auto-migrate config on plugin version update — backs up, merges, and fills in new keys |
+| 🌐 **i18n Internationalization** | Built-in Chinese and English translations, switch language via config `language` field |
+| 📢 **Real-time Notifications** | Notify server administrators via console and in-game chat when updates are detected |
+| ⚡ **Fast Check** | Efficient semantic version comparison with complex pre-release tag support |
+| 📝 **Detailed Logs** | Colored gradient log output, daily log files with multiple log levels |
+| 🌍 **Multi-plugin Support** | Support all LSE plugins that export a `CheckUpdate` function |
+| 📊 **Telemetry Statistics** | Integrated BStats for usage statistics (optional, can be disabled) |
 
 ---
 
@@ -54,7 +61,8 @@ Server Root/
     └── EasyCheckUpdate/                    # Plugin resource directory
         ├── EasyCheckUpdate.js              # Main plugin file
         └── config/
-            └── EasyCheckUpdate.json        # Configuration file
+            ├── EasyCheckUpdate.json        # Configuration file
+            └── .config_backup.json         # Auto backup (generated during config migration)
 ```
 
 ---
@@ -78,143 +86,228 @@ Server Root/
 
 3. **Start Server**
    - Restart the server or use `/ll reload EasyCheckUpdate` command
-   - The plugin will automatically generate default configuration files
+   - The plugin will automatically generate default configuration files and required directories
 
 ---
 
 ## ⚙️ Configuration Details
 
-Configuration file location: `plugins/lse-easycheckupdate/config/EasyCheckUpdate.json`
+Configuration file location: `plugins/EasyCheckUpdate/config/EasyCheckUpdate.json`
 
 ### 📋 Main Configuration Items
 
 ```json
 {
+  "Version": "0.2.0-beta.4",     // Config version (tracks plugin version, auto-managed — do NOT edit)
+  "language": "zh_CN",           // Output language: "zh_CN" (Chinese) or "en_US" (English)
+
   // 📊 BStats telemetry configuration
   "Bstats": {
-    "EnableModule": true,        // Enable BStats telemetry
-    "logSentData": false,        // Log sent data (for debugging)
+    "EnableModule": true,         // Enable BStats telemetry
+    "logSentData": false,         // Log sent data (for debugging)
     "serverUUID": "Auto-generated UUID"  // Server unique identifier (auto-generated)
   },
 
   // 🔄 Update check configuration
-  "check_update_on_load": true,  // Automatically check updates on plugin load
-  "check_interval": 1800,        // Update check interval (seconds), default 30 minutes
-  "check_delay": 10,             // First check delay (seconds)
-  "last_check_time": 0           // Last check timestamp (auto-recorded)
+  "check_update_on_load": true,   // Automatically check updates on plugin load
+  "check_interval": 1800,         // Update check interval (seconds), default 30 minutes
+  "check_delay": 10,              // First check delay (seconds)
+  "last_check_time": 0            // Last check timestamp (auto-recorded)
 }
 ```
 
+### Configuration Description
+
+| Config Item | Type | Default | Description |
+| ------ | ---- | ------ | ---- |
+| `Version` | String | Plugin ver | Config version — auto-updated with plugin version, **do NOT edit manually** |
+| `language` | String | `zh_CN` | Output language: `zh_CN` or `en_US`. Run `/checkupdate reload` after changing |
+| `Bstats.EnableModule` | Boolean | `true` | Enable/disable BStats telemetry |
+| `Bstats.logSentData` | Boolean | `false` | Log telemetry payload in console (for debugging) |
+| `Bstats.serverUUID` | String | Auto-generated | Server unique ID, auto-generated and saved on first run |
+| `check_update_on_load` | Boolean | `true` | Whether to auto-check all plugins for updates on load |
+| `check_delay` | Number | `10` | Delay before the first update check (seconds) |
+| `check_interval` | Number | `1800` | Interval between periodic checks (seconds), default 30 min |
+| `last_check_time` | Number | `0` | Timestamp of last check (auto-recorded) |
+
+### ⚙️ Config Version Migration
+
+EasyCheckUpdate has a built-in **config version management system**. When the plugin updates and the config structure changes, it automatically:
+
+1. **Detects version**: Compares the config's `Version` field with the current plugin version
+2. **Auto-backup**: Backs up the old config to `config/.config_backup.json` with timestamp and full snapshot
+3. **Incremental migration**: Runs version-to-version migration handlers for compatibility
+4. **Fills in new keys**: Deep-merges any new config items into the user's config (preserves existing settings)
+5. **Updates version**: Sets `Version` to the current plugin version
+
+> **Note**: If you accidentally delete any config item, the plugin will automatically restore it on the next load — no manual repair needed.
+
 ### 🔄 Automatic Update Check
 
-The plugin supports automatically checking updates for all plugins when loaded, which can be controlled through the configuration file.
-
-#### Configuration Description
-
-| Configuration Item | Type | Default Value | Description |
-| ------ | ---- | ------ | ---- |
-| `check_update_on_load` | Boolean | `true` | Whether to automatically check updates when plugin loads |
-| `check_delay` | Number | `10` | Delay time for first check (seconds) |
-| `check_interval` | Number | `1800` | Update check interval (seconds), default 30 minutes |
-| `last_check_time` | Number | `0` | Last check timestamp (auto-recorded, no manual modification needed) |
+The plugin supports automatically checking updates for all plugins when loaded, controllable via the config file.
 
 #### Workflow
 
 1. Plugin loading completed
-2. Check `check_update_on_load` configuration
-3. If enabled, output prompt: `Will automatically check all plugin updates in X seconds...`
-4. Wait for `check_delay` seconds
-5. Automatically execute `checkAllPluginsUpdate()` to check all plugin updates
-6. Output check result: `Check completed, checked X plugins that support update checking`
+2. Check `check_update_on_load` value
+3. If enabled, log: `Will auto-check all plugins for updates in X seconds...`
+4. Wait `check_delay` seconds
+5. Run `checkAllPluginsUpdate()` to check all plugin updates
+6. Record `last_check_time` and output check results
+7. Repeat every `check_interval` seconds
 
-#### Example
+#### Example Config
 
 ```json
 {
   "check_update_on_load": true,  // Enable automatic check
   "check_delay": 10,             // Start checking after 10 seconds
-  "check_interval": 1800,        // Check interval 30 minutes
+  "check_interval": 1800,        // Check interval: 30 minutes
   "last_check_time": 0
 }
 ```
 
 #### Notes
 
-- First check delay time is recommended to be set to 10-30 seconds, giving the server startup enough time
-- Check interval time is recommended to be set to 1800-3600 seconds (30-60 minutes) to avoid frequent checking
-- If automatic check is not needed, set `check_update_on_load` to `false`
+- First check delay: 10-30 seconds recommended to give the server time to fully start
+- Check interval: 1800-3600 seconds (30-60 min) recommended to avoid excessive requests
+- Set `check_update_on_load` to `false` if automatic checks are not needed
+
+### 🌐 Language Switching
+
+1. Open the config file and change `language` to `"zh_CN"` or `"en_US"`
+2. Run `/checkupdate reload` in-game or in console
+3. All output (logs, in-game messages, command help) switches to the selected language immediately
+
+---
 
 ## 🎮 Command Manual
 
 ### Update Check Commands
 
-| Command                           | Permission | Description                     |
-| ------------------------------ | ---- | ------------------------ |
-| `/checkupdate` or `/ecu`      | OP   | Display help information             |
-| `/checkupdate all`             | OP   | Check updates for all plugins       |
-| `/checkupdate reload`          | OP   | Reload plugin configuration             |
-| `/checkupdate update <plugin>` | OP   | Update specified plugin             |
-| `/checkupdate <plugin>`        | OP   | Check updates for specified plugin       |
+| Command | Permission | Description |
+| ---- | ---- | ---- |
+| `/checkupdate` or `/ecu` | OP | Display help information |
+| `/checkupdate all` | OP | Check all plugins that support EasyCheckUpdate for updates |
+| `/checkupdate reload` | OP | Reload plugin config (use this after changing the language setting) |
+| `/checkupdate <plugin>` | OP | Check a specific plugin for updates (check only, no auto-update) |
+| `/checkupdate update <plugin> [version]` | OP | Update a plugin. Omit version to auto-select the best one |
+| `/checkupdate info <plugin> [version]` | OP | View version list; add version number to see specific version details |
+
+### Command Examples
+
+```bash
+# Check all plugins
+/checkupdate all
+
+# Check a specific plugin
+/checkupdate EasyCheckUpdate
+
+# Update to latest (auto-select best version)
+/checkupdate update EasyCheckUpdate
+
+# Install a specific version (upgrade, downgrade, or reinstall)
+/checkupdate update EasyCheckUpdate 0.1.0
+
+# View all available versions
+/checkupdate info EasyCheckUpdate
+
+# View specific version details
+/checkupdate info EasyCheckUpdate 0.2.0-beta.3
+
+# Reload plugin configuration (apply language changes)
+/checkupdate reload
+```
+
+### Version Selection Strategy
+
+| Current Version Type | Upgrade Strategy |
+| ---- | ---- |
+| **Stable** (e.g. `1.0.0`) | Skip all pre-releases, recommend the latest stable version |
+| **Pre-release** (e.g. `1.0.0-beta.1`) | Follow upgrade chain: `beta.1 → beta.2 → ... → stable` |
+| **Specific version** | Use `update <plugin> <version>` to install any published version — supports downgrades and reinstalls |
 
 ---
 
 ## 🔧 Developer Usage
 
-Plugin developers can enable automatic update checking for their plugins by exporting a `CheckUpdate` function.
+Plugin developers can enable automatic update checking by exporting a `CheckUpdate` function.
 
 ### Exporting CheckUpdate Function
 
-Export a `CheckUpdate` function in your plugin that returns an object containing update information.
-
-#### Method 1: Export via "ecu" namespace
+#### Method 1: Via `ecu` namespace (Recommended)
 
 ```javascript
 // Export CheckUpdate function in your plugin
-ll.export("ecu", "YourPluginName", function() {
+ll.exports(function() {
     return {
         plugin_version: "v1.0.0",
         update_url: "https://your-update-url.com/update.json"
     };
-});
+}, "ecu", "YourPluginName");
 ```
 
-#### Method 2: Directly export CheckUpdate function
+#### Method 2: Direct export (Legacy compatible)
 
 ```javascript
-// Export CheckUpdate function in your plugin
-ll.export("YourPluginName", "CheckUpdate", function() {
+ll.exports(function() {
     return {
         plugin_version: "v1.0.0",
         update_url: "https://your-update-url.com/update.json"
     };
-});
+}, "YourPluginName", "CheckUpdate");
 ```
+
+> **Note**: EasyCheckUpdate checks the `ecu` namespace first, then falls back to the direct export. Method 1 is recommended to avoid naming conflicts.
+
+### Return Object Fields
+
+| Field | Type | Required | Description |
+| ---- | ---- | ---- | ---- |
+| `plugin_version` | String | Yes | Current plugin version, e.g. `"v1.0.0"` |
+| `update_url` | String | Yes | URL to the update info JSON file |
 
 ### Update Information File Format
 
-Your update information file (e.g., update.json) needs to contain the following information.
+Your update info file (e.g. `update.json`) supports the following two formats.
 
-#### Single Version Format
+#### Single Version Format (Legacy Compatible)
+
+Suitable for simple scenarios with only the latest version.
 
 ```json
 {
     "version": "1.0.0",
-    "download_url": "https://your-download-url.com/plugin.zip",
+    "download_url": "https://github.com/User/Repo/releases/download/v1.0.0/Plugin-v1.0.0.zip",
     "update_content": "Update content description",
     "author": "Author Name",
     "update_time": "2024-01-01"
 }
 ```
 
-#### Multi-Version Format
+#### Multi-Version Format (Recommended)
+
+Supports full version history, works with the `info` command for version list and per-version details.
 
 ```json
 {
     "latest_version": "1.0.0",
     "versions": {
         "1.0.0": {
-            "download_url": "https://your-download-url.com/plugin-v1.0.0.zip",
-            "update_content": "Update content description",
+            "download_url": "https://github.com/User/Repo/releases/download/v1.0.0/Plugin-v1.0.0.zip",
+            "update_content": "Stable release",
+            "author": "Author Name",
+            "update_time": "2024-02-01"
+        },
+        "1.0.0-beta.1": {
+            "download_url": "https://github.com/User/Repo/releases/download/v1.0.0-beta.1/Plugin-v1.0.0-beta.1.zip",
+            "update_content": "Beta release",
+            "author": "Author Name",
+            "update_time": "2024-01-15"
+        },
+        "0.9.0": {
+            "download_url": "https://github.com/User/Repo/releases/download/v0.9.0/Plugin-v0.9.0.zip",
+            "update_content": "Previous stable release",
             "author": "Author Name",
             "update_time": "2024-01-01"
         }
@@ -222,37 +315,34 @@ Your update information file (e.g., update.json) needs to contain the following 
 }
 ```
 
+> **About `download_url`**: Two file formats are supported:
+> - **`.zip`** — GitHub Release ZIP package, auto-downloaded with `curl -L` and extracted
+> - **`.js`** — Single file link, directly downloaded and replaced
+
 ### Complete Example
 
 ```javascript
-// Your plugin code
 const pluginName = "MyPlugin";
 const pluginVersion = "v1.0.0";
 
 // Export CheckUpdate function
-ll.export("ecu", pluginName, function() {
+ll.exports(function() {
     return {
         plugin_version: pluginVersion,
         update_url: `https://raw.githubusercontent.com/YourUsername/${pluginName}/main/update.json`
     };
-});
-
-// Or use the second method
-ll.export(pluginName, "CheckUpdate", function() {
-    return {
-        plugin_version: pluginVersion,
-        update_url: `https://raw.githubusercontent.com/YourUsername/${pluginName}/main/update.json`
-    };
-});
+}, "ecu", pluginName);
 ```
 
-### Workflow
+### Plugin Update Workflow
 
-1. EasyCheckUpdate plugin automatically detects all loaded plugins
-2. Checks if the plugin has exported a `CheckUpdate` function
-3. If exported, calls the function to get update information
-4. Downloads update information from the returned `update_url`
-5. Compares version numbers and notifies administrator if a new version is available
+1. EasyCheckUpdate automatically detects all loaded LSE plugins
+2. Checks each plugin for an exported `CheckUpdate` function (`ecu` namespace → direct export)
+3. Calls `CheckUpdate` to get the current version and update info URL
+4. Downloads the update info JSON from the returned `update_url`
+5. Parses multi-version/single-version format, intelligently selects the best upgrade version
+6. For ZIP format: Download → `curl -L` follow redirect → extract (tar/PowerShell) → smart root detection → install files → reload plugin
+7. For JS format: Download → backup old file → replace → reload plugin
 
 ---
 
