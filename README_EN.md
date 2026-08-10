@@ -98,7 +98,7 @@ Configuration file location: `plugins/EasyCheckUpdate/config/EasyCheckUpdate.jso
 
 ```json
 {
-  "Version": "0.2.0-beta.4",     // Config version (tracks plugin version, auto-managed — do NOT edit)
+  "Version": "0.2.0",     // Config version (tracks plugin version, auto-managed — do NOT edit)
   "language": "zh_CN",           // Output language: "zh_CN" (Chinese) or "en_US" (English)
 
   // 📊 BStats telemetry configuration
@@ -213,7 +213,7 @@ The plugin supports automatically checking updates for all plugins when loaded, 
 /checkupdate info EasyCheckUpdate
 
 # View specific version details
-/checkupdate info EasyCheckUpdate 0.2.0-beta.3
+/checkupdate info EasyCheckUpdate 0.2.0-beta.5
 
 # Reload plugin configuration (apply language changes)
 /checkupdate reload

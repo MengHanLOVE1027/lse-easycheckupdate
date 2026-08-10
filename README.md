@@ -98,7 +98,7 @@ LSE-EasyCheckUpdate 是一个专为 LeviLamina 服务器设计的插件更新检
 
 ```json
 {
-  "Version": "0.2.0-beta.4",     // 配置版本号（跟随插件版本，自动管理，请勿手动修改）
+  "Version": "0.2.0",     // 配置版本号（跟随插件版本，自动管理，请勿手动修改）
   "language": "zh_CN",           // 输出语言：zh_CN（中文）或 en_US（英文）
 
   // 📊 BStats 遥测配置
