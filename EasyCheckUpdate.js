@@ -3,7 +3,7 @@
 // 声明常量
 const plugin_name = "EasyCheckUpdate",
     plugin_name_smallest = "easycheckupdate",
-    plugin_version = "0.2.0-beta.5",
+    plugin_version = "0.2.0-beta.6",
     plugin_description = "一个基于 LSE 的插件更新检查工具 / A plugin update checker based on LSE.",
     plugin_github_link = "https://github.com/MengHanLOVE1027/lse-easycheckupdate",
     plugin_minebbs_link = "https://www.minebbs.com/resources/easycheckupdate-ecu-lse.15501/",
@@ -14,8 +14,8 @@ const plugin_name = "EasyCheckUpdate",
 // 声明全局变量
 let pluginConfig = null;
 let bstatsInstance = null;
-let initialUpdateCheckTimer = null;
-let recurringUpdateCheckTimer = null;
+// 定时器管理（LSE QuickJS 不支持 clearTimeout/clearInterval，使用标志位取消）
+let scheduleCancelled = false;
 // #endregion
 
 // TAG: I18N 国际化模块
@@ -705,6 +705,10 @@ function pluginPrint(text, level = "INFO") {
  * 加载插件
  */
 function Loadplugin() {
+
+    // NOTE: 输出插件LOGO
+    logger.setTitle(`\x1b[32m${plugin_name}\x1b[0m`) // 设置日志头
+
     // 确保插件目录存在
     if (!File.exists(plugin_path)) {
         File.createDir(plugin_path);
@@ -849,8 +853,6 @@ function Loadplugin() {
     // ── 初始化 i18n 语言 ──
     applyConfiguredLanguage();
 
-    // NOTE: 输出插件LOGO
-    logger.setTitle(`\x1b[32m${plugin_name}\x1b[0m`) // 设置日志头
     pluginPrint(`
 ███████╗ █████╗ ███████╗██╗   ██╗██╗   ██╗██████╗ ██████╗  █████╗ ████████╗███████╗
 ██╔════╝██╔══██╗██╔════╝╚██╗ ██╔╝██║   ██║██╔══██╗██╔══██╗██╔══██╗╚══██╔══╝██╔════╝
@@ -1798,14 +1800,8 @@ function recordLastCheckTime() {
 }
 
 function scheduleUpdateChecks() {
-    if (initialUpdateCheckTimer !== null) {
-        clearTimeout(initialUpdateCheckTimer);
-        initialUpdateCheckTimer = null;
-    }
-    if (recurringUpdateCheckTimer !== null) {
-        clearInterval(recurringUpdateCheckTimer);
-        recurringUpdateCheckTimer = null;
-    }
+    // 取消之前的定时任务（LSE 不支持 clearTimeout，使用标志位）
+    scheduleCancelled = true;
 
     if (!pluginConfig || !pluginConfig.check_update_on_load) return;
 
@@ -1815,12 +1811,17 @@ function scheduleUpdateChecks() {
     if (!Number.isFinite(interval) || interval <= 0) interval = 1800;
 
     pluginPrint(t("update.auto_check_delay", delay));
-    initialUpdateCheckTimer = setTimeout(() => {
-        initialUpdateCheckTimer = null;
+    scheduleCancelled = false;
+    setTimeout(() => {
+        if (scheduleCancelled) return;
         checkAllPluginsUpdate();
-        recurringUpdateCheckTimer = setInterval(() => {
+        // 启动定期检查
+        const doInterval = () => {
+            if (scheduleCancelled) return;
             checkAllPluginsUpdate();
-        }, interval * 1000);
+            setTimeout(doInterval, interval * 1000);
+        };
+        setTimeout(doInterval, interval * 1000);
     }, delay * 1000);
 }
 

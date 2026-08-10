@@ -1,6 +1,12 @@
 {
-    "latest_version": "0.2.0-beta.5",
+    "latest_version": "0.2.0-beta.6",
     "versions": {
+        "0.2.0-beta.6": {
+            "download_url": "https://github.com/MengHanLOVE1027/lse-easycheckupdate/releases/download/v0.2.0-beta.6/EasyCheckUpdate-v0.2.0-beta.6.zip",
+            "update_content": "feat: 优化定时器管理，使用标志位取消定时任务，简化代码逻辑",
+            "author": "梦涵LOVE",
+            "update_time": "2026-08-10 19:10:00"
+        },
         "0.2.0-beta.5": {
             "download_url": "https://github.com/MengHanLOVE1027/lse-easycheckupdate/releases/download/v0.2.0-beta.5/EasyCheckUpdate-v0.2.0-beta.5.zip",
             "update_content": "feat: 添加 i18n 国际化支持，配置文件版本自动迁移，完善文档",
