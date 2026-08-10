@@ -3,7 +3,7 @@
 // 声明常量
 const plugin_name = "EasyCheckUpdate",
     plugin_name_smallest = "easycheckupdate",
-    plugin_version = "0.2.0-beta.3",
+    plugin_version = "0.2.0-beta.4",
     plugin_description = "一个基于 LSE 的插件更新检查工具 / A plugin update checker based on LSE.",
     plugin_github_link = "https://github.com/MengHanLOVE1027/lse-easycheckupdate",
     plugin_minebbs_link = "https://www.minebbs.com/resources/easycheckupdate-ecu-lse.15501/",
@@ -874,6 +874,53 @@ function installFromExtract(extractDir, targetPluginDir, pluginName) {
 }
 
 /**
+ * 下载文件到指定路径（自动跟随重定向）
+ * 优先使用 curl -L，失败则回退到 network.httpGet
+ * @param {String} url 下载链接
+ * @param {String} destPath 目标文件路径
+ * @param {Function} onComplete 完成回调(err)
+ */
+function downloadFile(url, destPath, onComplete) {
+    pluginPrint(`正在下载: ${url}`, "INFO");
+
+    // 使用 curl -L 下载（自动跟随重定向，Windows 10+ 和 Linux 通用）
+    const curlCmd = `curl -L -o "${destPath}" "${url}"`;
+    system.cmd(curlCmd, (exitCode, output) => {
+        if (exitCode === 0 && File.exists(destPath)) {
+            const fileSize = File.readFrom(destPath).length;
+            pluginPrint(`curl 下载完成: ${destPath} (${fileSize} bytes)`, "INFO");
+            onComplete(null);
+            return;
+        }
+
+        pluginPrint(`curl 下载失败(exit=${exitCode})，尝试 network.httpGet...`, "INFO");
+
+        // 回退：使用 network.httpGet（适用于不重定向的链接）
+        network.httpGet(url, (status, response) => {
+            if (status === 200) {
+                try {
+                    File.writeTo(destPath, response);
+                    pluginPrint(`httpGet 下载完成: ${destPath}`, "INFO");
+                    onComplete(null);
+                } catch (e) {
+                    onComplete(`写入文件失败: ${e.message}`);
+                }
+                return;
+            }
+
+            // 如果是 302/301 重定向，curl 已失败，不再重试
+            if (status === 302 || status === 301) {
+                pluginPrint(`GitHub Release 需要跟随重定向，但 curl 不可用`, "ERROR");
+                pluginPrint(`请确保服务器已安装 curl (Windows 10+ 自带)`, "ERROR");
+                onComplete(`下载失败: HTTP ${status} (curl 不可用，无法跟随重定向)`);
+            } else {
+                onComplete(`下载失败: HTTP ${status}`);
+            }
+        });
+    });
+}
+
+/**
  * 从指定URL下载并更新插件
  * 支持 ZIP 包（自动解压安装）和单文件两种格式
  * @param {String} pluginName 插件名称
@@ -901,16 +948,15 @@ function downloadAndUpdatePlugin(pluginName, version, downloadUrl) {
             ensureDir(tempBaseDir);
             ensureDir(tempWorkDir);
 
-            network.httpGet(downloadUrl, (status, response) => {
-                if (status !== 200) {
-                    pluginPrint(`下载插件 ${pluginName} 失败，状态码: ${status}`, "ERROR");
+            downloadFile(downloadUrl, zipPath, (err) => {
+                if (err) {
+                    pluginPrint(`下载插件 ${pluginName} 失败: ${err}`, "ERROR");
+                    removeDir(tempWorkDir);
                     return;
                 }
 
                 try {
-                    // 保存 ZIP 到临时文件
-                    File.writeTo(zipPath, response);
-                    pluginPrint(`ZIP 已下载到 ${zipPath}，正在解压...`);
+                    pluginPrint(`ZIP 已下载，正在解压...`);
 
                     // 解压
                     extractZip(zipPath, extractDir, (err) => {
@@ -921,7 +967,6 @@ function downloadAndUpdatePlugin(pluginName, version, downloadUrl) {
 
                         if (err) {
                             pluginPrint(`插件 ${pluginName} ${err}`, "ERROR");
-                            // 清理
                             removeDir(tempWorkDir);
                             return;
                         }
@@ -931,7 +976,6 @@ function downloadAndUpdatePlugin(pluginName, version, downloadUrl) {
 
                         // 清理临时目录
                         removeDir(tempWorkDir);
-                        // 如果 _temp 目录为空，也清理掉
                         try {
                             const tempEntries = File.getFilesList(tempBaseDir);
                             if (tempEntries.length === 0) {
@@ -941,7 +985,6 @@ function downloadAndUpdatePlugin(pluginName, version, downloadUrl) {
 
                         pluginPrint(`插件 ${pluginName} 已更新到 v${version}，正在重载插件...`, "INFO");
 
-                        // 重载插件
                         setTimeout(() => {
                             try {
                                 mc.runcmdEx(`ll reload ${pluginName}`);
@@ -963,21 +1006,22 @@ function downloadAndUpdatePlugin(pluginName, version, downloadUrl) {
             ensureDir(tempDir);
 
             let fileName = downloadUrl.split('/').pop();
-            if (!fileName.endsWith('.js')) {
+            // 去除 URL 查询参数
+            if (fileName.includes('?')) {
+                fileName = fileName.split('?')[0];
+            }
+            if (!fileName || !fileName.includes('.')) {
                 fileName = `${pluginName}-${version}.js`;
             }
 
             const tempFile = `${tempDir}/${fileName}`;
-            network.httpGet(downloadUrl, (status, response) => {
-                if (status !== 200) {
-                    pluginPrint(`下载插件 ${pluginName} 失败，状态码: ${status}`, "ERROR");
+            downloadFile(downloadUrl, tempFile, (err) => {
+                if (err) {
+                    pluginPrint(`下载插件 ${pluginName} 失败: ${err}`, "ERROR");
                     return;
                 }
 
                 try {
-                    File.writeTo(tempFile, response);
-                    pluginPrint(`文件已下载到 ${tempFile}`);
-
                     // 查找插件文件路径
                     const pluginsDir = "./plugins";
                     let pluginFilePath;
@@ -986,22 +1030,26 @@ function downloadAndUpdatePlugin(pluginName, version, downloadUrl) {
                     for (const file of files) {
                         if (file === pluginName || file.toLowerCase() === pluginName.toLowerCase()) {
                             const pluginDir = `${pluginsDir}/${file}`;
-                            const pluginFiles = File.getFilesList(pluginDir);
-                            for (const pluginFile of pluginFiles) {
-                                if (pluginFile === `${pluginName}.js` || pluginFile.toLowerCase() === `${pluginName.toLowerCase()}.js`) {
-                                    pluginFilePath = `${pluginDir}/${pluginFile}`;
-                                    break;
+                            if (File.exists(pluginDir)) {
+                                const pluginFiles = File.getFilesList(pluginDir);
+                                for (const pluginFile of pluginFiles) {
+                                    if (pluginFile === `${pluginName}.js` || pluginFile.toLowerCase() === `${pluginName.toLowerCase()}.js`) {
+                                        pluginFilePath = `${pluginDir}/${pluginFile}`;
+                                        break;
+                                    }
                                 }
                             }
                             if (pluginFilePath) break;
                         }
                         if (file.toLowerCase().includes(pluginName.toLowerCase())) {
                             const pluginDir = `${pluginsDir}/${file}`;
-                            const pluginFiles = File.getFilesList(pluginDir);
-                            for (const pluginFile of pluginFiles) {
-                                if (pluginFile.toLowerCase().includes(pluginName.toLowerCase())) {
-                                    pluginFilePath = `${pluginDir}/${pluginFile}`;
-                                    break;
+                            if (File.exists(pluginDir)) {
+                                const pluginFiles = File.getFilesList(pluginDir);
+                                for (const pluginFile of pluginFiles) {
+                                    if (pluginFile.toLowerCase().includes(pluginName.toLowerCase()) && pluginFile.endsWith('.js')) {
+                                        pluginFilePath = `${pluginDir}/${pluginFile}`;
+                                        break;
+                                    }
                                 }
                             }
                             if (pluginFilePath) break;
@@ -1009,7 +1057,6 @@ function downloadAndUpdatePlugin(pluginName, version, downloadUrl) {
                     }
 
                     if (pluginFilePath) {
-                        // 备份旧文件
                         const backupPath = pluginFilePath + '.bak';
                         try {
                             File.copy(pluginFilePath, backupPath);
@@ -1018,17 +1065,14 @@ function downloadAndUpdatePlugin(pluginName, version, downloadUrl) {
                             pluginPrint(`备份文件失败: ${backupError.message}`, "WARNING");
                         }
 
-                        // 替换文件
                         if (File.exists(pluginFilePath)) {
                             File.delete(pluginFilePath);
                         }
                         File.copy(tempFile, pluginFilePath);
                         pluginPrint(`已更新插件文件: ${pluginFilePath}`);
 
-                        // 清理临时文件
                         if (File.exists(tempFile)) {
                             File.delete(tempFile);
-                            pluginPrint(`已清理临时文件: ${tempFile}`);
                         }
 
                         pluginPrint(`插件 ${pluginName} 已更新，正在重载插件...`, "INFO");
