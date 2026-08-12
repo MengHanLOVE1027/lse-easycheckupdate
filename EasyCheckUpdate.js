@@ -1303,6 +1303,13 @@ function checkPluginUpdate(pluginName, currentVersion, autoUpdate = false, plugi
                                 }
                             }
 
+                            // 同类型没找到则回退到 latest_version
+                            if (!candidateVer) candidateVer = updateData.latest_version || "";
+                            // latest_version 不高于当前版本则视为无更新
+                            if (candidateVer && compareVersions(candidateVer, currentVersion) <= 0) {
+                                candidateVer = null;
+                            }
+
                             if (!candidateVer) {
                                 pluginPrint(t("update.up_to_date", pluginName, currentVersion));
                                 return;
@@ -2225,8 +2232,8 @@ function RegisterCmd() {
                             }
                         }
                         if (!recommendedVer) recommendedVer = updateData.latest_version || "";
-                        // 推荐版本不高于当前版本则不显示★
-                        if (recommendedVer && compareVersions(recommendedVer, currentVersion) <= 0) {
+                        // 推荐版本等于当前版本时不显示★（版本高于或低于当前版本都显示）
+                        if (recommendedVer && compareVersions(recommendedVer, currentVersion) === 0) {
                             recommendedVer = "";
                         }
                         printVersionList(pluginName, versions, currentVersion, recommendedVer, pageNum);
