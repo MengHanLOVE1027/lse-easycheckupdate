@@ -100,7 +100,7 @@ Configuration file location: `plugins/EasyCheckUpdate/config/EasyCheckUpdate.jso
 
 ```json
 {
-  "Version": "0.2.1",     // Config version (tracks plugin version, auto-managed — do NOT edit)
+  "Version": "0.2.2-beta.1",     // Config version (tracks plugin version, auto-managed — do NOT edit)
   "language": "zh_CN",           // Output language: "zh_CN" (Chinese) or "en_US" (English)
 
   // 📊 BStats telemetry configuration
@@ -228,8 +228,8 @@ The plugin supports automatically checking updates for all plugins when loaded, 
 
 | Current Version Type | Upgrade Strategy |
 | ---- | ---- |
-| **Stable** (e.g. `1.0.0`) | Skip all pre-releases, recommend the latest stable version |
-| **Pre-release** (e.g. `1.0.0-beta.1`) | Prefer latest stable; if none, recommend latest pre-release |
+| **Stable** (e.g. `1.0.0`) | Recommend the latest stable version only; skip all pre-releases |
+| **Pre-release** (e.g. `1.0.0-beta.1`) | Recommend the latest pre-release version only |
 | **Specific version** | Use `update <plugin> <version>` to install any published version — supports downgrades and reinstalls |
 | **★Recommend marker** | Version list auto-marks recommended upgrade (★Recommended) and current version (Current) |
 
