@@ -100,7 +100,7 @@ LSE-EasyCheckUpdate 是一个专为 LeviLamina 服务器设计的插件更新检
 
 ```json
 {
-  "Version": "0.2.0",     // 配置版本号（跟随插件版本，自动管理，请勿手动修改）
+  "Version": "0.2.1",     // 配置版本号（跟随插件版本，自动管理，请勿手动修改）
   "language": "zh_CN",           // 输出语言：zh_CN（中文）或 en_US（英文）
 
   // 📊 BStats 遥测配置
@@ -192,9 +192,9 @@ EasyCheckUpdate 内置**配置文件版本管理系统**，当插件更新后配
 | `/checkupdate` 或 `/ecu` | OP | 显示帮助信息 |
 | `/checkupdate all` | OP | 检查所有支持 EasyCheckUpdate 的插件的更新 |
 | `/checkupdate reload` | OP | 重载插件配置（切换语言后可执行此命令使之生效） |
-| `/checkupdate <插件名>` | OP | 检查指定插件的更新（仅检查，不自动更新） |
+| `/checkupdate check <插件名>` | OP | 检查指定插件的更新（仅检查，不自动更新） |
 | `/checkupdate update <插件名> [版本号]` | OP | 更新指定插件。不指定版本号则自动选择最佳版本 |
-| `/checkupdate info <插件名> [版本号]` | OP | 查看版本列表；指定版本号可查看该版本的详细信息 |
+| `/checkupdate info <插件名> [版本号\|p页码]` | OP | 查看版本列表（支持分页）；指定版本号可查看该版本的详细信息 |
 
 ### 命令示例
 
@@ -203,7 +203,7 @@ EasyCheckUpdate 内置**配置文件版本管理系统**，当插件更新后配
 /checkupdate all
 
 # 检查指定插件
-/checkupdate EasyCheckUpdate
+/checkupdate check EasyCheckUpdate
 
 # 更新到最新版本（自动选择最佳版本）
 /checkupdate update EasyCheckUpdate
@@ -211,11 +211,14 @@ EasyCheckUpdate 内置**配置文件版本管理系统**，当插件更新后配
 # 安装指定版本（可升级、降级或重装）
 /checkupdate update EasyCheckUpdate 0.1.0
 
-# 查看所有可用版本列表
+# 查看所有可用版本列表（第1页，每页10条）
 /checkupdate info EasyCheckUpdate
 
+# 查看版本列表第2页
+/checkupdate info EasyCheckUpdate p2
+
 # 查看指定版本详细信息
-/checkupdate info EasyCheckUpdate 0.2.0-beta.3
+/checkupdate info EasyCheckUpdate 0.2.1-beta.1
 
 # 重载插件配置（切换语言后生效）
 /checkupdate reload
@@ -226,8 +229,9 @@ EasyCheckUpdate 内置**配置文件版本管理系统**，当插件更新后配
 | 用户当前版本类型 | 推荐升级策略 |
 | ---- | ---- |
 | **正式版** (如 `1.0.0`) | 自动跳过所有测试版，推荐最新的正式版 |
-| **测试版** (如 `1.0.0-beta.1`) | 沿升级链逐级升级：`beta.1 → beta.2 → ... → 正式版` |
+| **测试版** (如 `1.0.0-beta.1`) | 优先推荐最新正式版；若无正式版，则推荐最新测试版 |
 | **指定版本** | 使用 `update <插件名> <版本号>` 可安装任意已发布版本，支持降级和重装 |
+| **★推荐标记** | 版本列表中自动标注推荐升级版本（★推荐），当前版本标注（当前版本） |
 
 ---
 

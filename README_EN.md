@@ -100,7 +100,7 @@ Configuration file location: `plugins/EasyCheckUpdate/config/EasyCheckUpdate.jso
 
 ```json
 {
-  "Version": "0.2.0",     // Config version (tracks plugin version, auto-managed — do NOT edit)
+  "Version": "0.2.1",     // Config version (tracks plugin version, auto-managed — do NOT edit)
   "language": "zh_CN",           // Output language: "zh_CN" (Chinese) or "en_US" (English)
 
   // 📊 BStats telemetry configuration
@@ -192,9 +192,9 @@ The plugin supports automatically checking updates for all plugins when loaded, 
 | `/checkupdate` or `/ecu` | OP | Display help information |
 | `/checkupdate all` | OP | Check all plugins that support EasyCheckUpdate for updates |
 | `/checkupdate reload` | OP | Reload plugin config (use this after changing the language setting) |
-| `/checkupdate <plugin>` | OP | Check a specific plugin for updates (check only, no auto-update) |
+| `/checkupdate check <plugin>` | OP | Check a specific plugin for updates (check only, no auto-update) |
 | `/checkupdate update <plugin> [version]` | OP | Update a plugin. Omit version to auto-select the best one |
-| `/checkupdate info <plugin> [version]` | OP | View version list; add version number to see specific version details |
+| `/checkupdate info <plugin> [version\|page]` | OP | View version list (with pagination); add version number to see details |
 
 ### Command Examples
 
@@ -203,7 +203,7 @@ The plugin supports automatically checking updates for all plugins when loaded, 
 /checkupdate all
 
 # Check a specific plugin
-/checkupdate EasyCheckUpdate
+/checkupdate check EasyCheckUpdate
 
 # Update to latest (auto-select best version)
 /checkupdate update EasyCheckUpdate
@@ -211,11 +211,14 @@ The plugin supports automatically checking updates for all plugins when loaded, 
 # Install a specific version (upgrade, downgrade, or reinstall)
 /checkupdate update EasyCheckUpdate 0.1.0
 
-# View all available versions
+# View all available versions (page 1, 10 per page)
 /checkupdate info EasyCheckUpdate
 
+# View version list page 2
+/checkupdate info EasyCheckUpdate p2
+
 # View specific version details
-/checkupdate info EasyCheckUpdate 0.2.0-beta.5
+/checkupdate info EasyCheckUpdate 0.2.1-beta.1
 
 # Reload plugin configuration (apply language changes)
 /checkupdate reload
@@ -226,8 +229,9 @@ The plugin supports automatically checking updates for all plugins when loaded, 
 | Current Version Type | Upgrade Strategy |
 | ---- | ---- |
 | **Stable** (e.g. `1.0.0`) | Skip all pre-releases, recommend the latest stable version |
-| **Pre-release** (e.g. `1.0.0-beta.1`) | Follow upgrade chain: `beta.1 → beta.2 → ... → stable` |
+| **Pre-release** (e.g. `1.0.0-beta.1`) | Prefer latest stable; if none, recommend latest pre-release |
 | **Specific version** | Use `update <plugin> <version>` to install any published version — supports downgrades and reinstalls |
+| **★Recommend marker** | Version list auto-marks recommended upgrade (★Recommended) and current version (Current) |
 
 ---
 
