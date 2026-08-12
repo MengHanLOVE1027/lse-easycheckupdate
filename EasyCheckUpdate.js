@@ -3,7 +3,7 @@
 // 声明常量
 const plugin_name = "EasyCheckUpdate",
     plugin_name_smallest = "easycheckupdate",
-    plugin_version = "0.2.1-beta.1",
+    plugin_version = "0.2.1-beta.2",
     plugin_description = "一个基于 LSE 的插件更新检查工具 / A plugin update checker based on LSE.",
     plugin_github_link = "https://github.com/MengHanLOVE1027/lse-easycheckupdate",
     plugin_minebbs_link = "https://www.minebbs.com/resources/easycheckupdate-ecu-lse.15501/",
@@ -1081,16 +1081,12 @@ function printVersionDetail(pluginName, versionKey, verInfo) {
  * @param {Object} versions 版本信息对象
  * @param {String} currentVersion 当前版本
  * @param {String|null} recommendedVer 推荐升级版本，null表示无更新
- * @param {Boolean} userIsPreRelease 用户当前是否为预发布版本
  * @param {Number} page 页码（从1开始）
  * @param {Number} perPage 每页条数
  */
-function printVersionList(pluginName, versions, currentVersion, recommendedVer, userIsPreRelease, page = 1, perPage = 10) {
-    // 构建过滤后的版本列表（降序）
-    let sorted = Object.keys(versions).sort((a, b) => compareVersions(b, a));
-    if (!userIsPreRelease) {
-        sorted = sorted.filter(ver => !isPreRelease(ver));
-    }
+function printVersionList(pluginName, versions, currentVersion, recommendedVer, page = 1, perPage = 10) {
+    // 显示全部版本（不过滤预发布/正式版），与 Python 版行为一致
+    const sorted = Object.keys(versions).sort((a, b) => compareVersions(b, a));
 
     const totalCount = sorted.length;
     const totalPages = Math.max(1, Math.ceil(totalCount / perPage));
@@ -2137,10 +2133,28 @@ function RegisterCmd() {
                         }
                         printVersionDetail(pluginName, verKey, versions[verKey]);
                     } else {
-                        // 显示版本列表（支持分页）
+                        // 显示版本列表（支持分页），计算推荐版本 ★
                         const currentVersion = pluginInfo.plugin_version || "unknown";
-                        const userIsPre = isPreRelease(currentVersion);
-                        printVersionList(pluginName, versions, currentVersion, null, userIsPre, pageNum);
+                        const sortedVers = Object.keys(versions).sort((a, b) => compareVersions(b, a));
+                        let recommendedVer = null;
+                        if (isPreRelease(currentVersion)) {
+                            // 预发布用户：推荐最新正式版 > 最新预发布
+                            for (const v of sortedVers) {
+                                if (!isPreRelease(v)) { recommendedVer = v; break; }
+                            }
+                            if (!recommendedVer) {
+                                for (const v of sortedVers) {
+                                    if (isPreRelease(v)) { recommendedVer = v; break; }
+                                }
+                            }
+                        } else {
+                            // 正式版用户：推荐最新正式版
+                            for (const v of sortedVers) {
+                                if (!isPreRelease(v)) { recommendedVer = v; break; }
+                            }
+                        }
+                        if (!recommendedVer) recommendedVer = updateData.latest_version || "";
+                        printVersionList(pluginName, versions, currentVersion, recommendedVer, pageNum);
                     }
                 } catch (e) {
                     pluginPrint(t("update.parse_version_error", e.message), "WARNING");
