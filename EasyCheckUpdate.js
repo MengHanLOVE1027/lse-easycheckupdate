@@ -3,8 +3,8 @@
 // 声明常量
 const plugin_name = "EasyCheckUpdate",
     plugin_name_smallest = "easycheckupdate",
-    plugin_version = "0.2.1",
-    plugin_description = "一个基于 LSE 的插件更新检查工具 / A plugin update checker based on LSE.",
+    plugin_version = "0.2.2-beta.1",
+    plugin_description_key = "logo.description",
     plugin_github_link = "https://github.com/MengHanLOVE1027/lse-easycheckupdate",
     plugin_minebbs_link = "https://www.minebbs.com/resources/easycheckupdate-ecu-lse.15501/",
     plugin_update_url = "https://raw.githubusercontent.com/MengHanLOVE1027/lse-easycheckupdate/main/update_versions.json",
@@ -21,9 +21,11 @@ let checkingInProgress = false;
 
 // TAG: I18N 国际化模块
 // #region I18N 国际化模块
-const I18N_DATA = {
+// 内置默认翻译表（回退用）
+const I18N_DEFAULTS = {
     "zh_CN": {
         // ── Logo / 启动 ──
+        "logo.description": "一个基于 LSE 的插件更新检查工具",
         "logo.author": "作者：梦涵LOVE          版本：v{0}",
         "logo.thanks": "感谢您使用Easy系列插件！",
         "logo.license": "本插件使用 {0} 许可证协议发布",
@@ -51,6 +53,9 @@ const I18N_DATA = {
         "config.reload_success": "重载成功",
         "config.reload_failed": "重载失败: {0}",
         "config.file_path": "配置文件: {0}",
+        "config.unknown_language": "未知语言 \"{0}\"，回退到 zh_CN",
+        "config.migration.lang_updated": "语言文件 [{0}] 已更新至版本 {1}",
+        "config.migration.lang_exported": "已导出默认语言文件: {0}",
 
         // ── 更新检查 ──
         "update.auto_check_delay": "将在 {0} 秒后自动检查所有插件的更新...",
@@ -168,6 +173,7 @@ const I18N_DATA = {
     },
     "en_US": {
         // ── Logo / Startup ──
+        "logo.description": "A plugin update checker based on LSE",
         "logo.author": "Author: MengHanLOVE          Version: v{0}",
         "logo.thanks": "Thank you for using the Easy series plugins!",
         "logo.license": "This plugin is released under the {0} license",
@@ -195,6 +201,9 @@ const I18N_DATA = {
         "config.reload_success": "Reload successful",
         "config.reload_failed": "Reload failed: {0}",
         "config.file_path": "Config file: {0}",
+        "config.unknown_language": "Unknown language \"{0}\", falling back to zh_CN",
+        "config.migration.lang_updated": "Language files [{0}] updated to version {1}",
+        "config.migration.lang_exported": "Default language file exported: {0}",
 
         // ── Update Check ──
         "update.auto_check_delay": "Will auto-check all plugins for updates in {0} seconds...",
@@ -312,9 +321,12 @@ const I18N_DATA = {
     }
 };
 
-// 全局翻译函数和当前语言
+// 语言文件目录
+const LANGS_DIR = plugin_path + "/langs/";
+
+// 运行时翻译数据（从外部文件加载，失败则回退到内置默认值）
+let i18nData = {};
 let i18nLang = "zh_CN";
-let i18nData = I18N_DATA["zh_CN"];
 
 /**
  * 翻译函数
@@ -325,7 +337,11 @@ let i18nData = I18N_DATA["zh_CN"];
 function t(key, ...args) {
     let template = i18nData[key];
     if (template === undefined) {
-        // 回退到键名，方便调试
+        // 回退到内置默认
+        const defaults = I18N_DEFAULTS[i18nLang] || I18N_DEFAULTS["zh_CN"];
+        template = defaults[key];
+    }
+    if (template === undefined) {
         return key;
     }
     for (let i = 0; i < args.length; i++) {
@@ -335,19 +351,108 @@ function t(key, ...args) {
 }
 
 /**
+ * 从 langs/ 目录加载语言文件
+ * @param {string} lang - 语言代码
+ */
+function loadLangFile(lang) {
+    const langFile = LANGS_DIR + lang + ".json";
+    try {
+        if (File.exists(langFile)) {
+            const content = File.readFrom(langFile);
+            const data = JSON.parse(content);
+            if (typeof data === "object") {
+                const defaults = I18N_DEFAULTS[lang] || I18N_DEFAULTS["zh_CN"];
+                i18nData = Object.assign({}, defaults, data);
+                return;
+            }
+        }
+    } catch (e) {
+        // 文件损坏，回退
+    }
+    i18nData = Object.assign({}, I18N_DEFAULTS[lang] || I18N_DEFAULTS["zh_CN"]);
+}
+
+/**
+ * 语言文件迁移：根据版本号将新增的翻译键合并到已有的语言文件中
+ * - 通过 langs/.version 记录当前版本，避免重复迁移
+ * - 如语言文件损坏则用默认值重建
+ */
+function migrateLangFiles() {
+    const versionFile = LANGS_DIR + ".version";
+    let storedVersion = "0.0.0";
+
+    if (File.exists(versionFile)) {
+        try {
+            storedVersion = File.readFrom(versionFile).trim();
+        } catch (e) {
+            // 读取失败，视为旧版本
+        }
+    }
+
+    if (storedVersion === plugin_version) return;
+
+    for (const lang of Object.keys(I18N_DEFAULTS)) {
+        const langFile = LANGS_DIR + lang + ".json";
+        const defaults = I18N_DEFAULTS[lang];
+
+        if (File.exists(langFile)) {
+            try {
+                const content = File.readFrom(langFile);
+                const data = JSON.parse(content);
+                if (typeof data === "object") {
+                    let changed = false;
+                    for (const key of Object.keys(defaults)) {
+                        if (!(key in data)) {
+                            data[key] = defaults[key];
+                            changed = true;
+                        }
+                    }
+                    if (changed) {
+                        File.writeTo(langFile, JSON.stringify(data, null, 4));
+                        pluginPrint(t("config.migration.lang_updated", lang, plugin_version), "INFO");
+                    }
+                }
+            } catch (e) {
+                // 文件损坏 → 用默认值重建
+                try {
+                    File.writeTo(langFile, JSON.stringify(defaults, null, 4));
+                    pluginPrint(t("config.migration.lang_exported", langFile), "INFO");
+                } catch (e2) {
+                    pluginPrint(t("bstats.write_log_failed", e2), "ERROR");
+                }
+            }
+        } else {
+            // 语言文件不存在 → 用默认值创建
+            try {
+                File.writeTo(langFile, JSON.stringify(defaults, null, 4));
+                pluginPrint(t("config.migration.lang_exported", langFile), "INFO");
+            } catch (e2) {
+                pluginPrint(t("bstats.write_log_failed", e2), "ERROR");
+            }
+        }
+    }
+
+    // 更新版本记录
+    try {
+        File.writeTo(versionFile, plugin_version);
+    } catch (e) {
+        // 非关键，忽略
+    }
+}
+
+/**
  * 根据当前配置切换输出语言
  */
 function applyConfiguredLanguage() {
     const configLang = pluginConfig && pluginConfig.language ? pluginConfig.language : "zh_CN";
-    if (I18N_DATA[configLang]) {
+    if (I18N_DEFAULTS[configLang]) {
         i18nLang = configLang;
-        i18nData = I18N_DATA[configLang];
-        return;
+        loadLangFile(configLang);
+    } else {
+        i18nLang = "zh_CN";
+        loadLangFile("zh_CN");
+        pluginPrint(t("config.unknown_language", configLang), "WARNING");
     }
-
-    i18nLang = "zh_CN";
-    i18nData = I18N_DATA["zh_CN"];
-    pluginPrint(`Unknown language "${configLang}", falling back to zh_CN`, "WARNING");
 }
 // #endregion
 
@@ -628,21 +733,6 @@ function RandomColor(text) {
 
 // TAG: 日志系统模块
 // #region 日志系统模块
-/**
- * 字符串格式化函数
- * @param {String} str 包含 %s 占位符的字符串
- * @param {...any} args 要替换的参数
- * @returns {String} 格式化后的字符串
- */
-function formatString(str, ...args) {
-    // 确保str是字符串类型
-    if (typeof str !== 'string') {
-        console.error(`formatString: str is not a string, type: ${typeof str}, value: ${str}`)
-        return String(str)
-    }
-    // 支持 %s 和 %d 格式化占位符
-    return str.replace(/%[sd]/g, () => args.shift())
-}
 
 /**
  * 自制日志输出函数
@@ -858,6 +948,11 @@ function Loadplugin() {
     }
 
     // ── 初始化 i18n 语言 ──
+    // 确保 langs 目录存在
+    if (!File.exists(LANGS_DIR)) {
+        File.createDir(LANGS_DIR);
+    }
+    migrateLangFiles();
     applyConfiguredLanguage();
 
     pluginPrint(`
@@ -869,7 +964,7 @@ function Loadplugin() {
 ╚══════╝╚═╝  ╚═╝╚══════╝   ╚═╝    ╚═════╝ ╚═╝     ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚══════╝`)
     pluginPrint(t("logo.author", plugin_version))
     pluginPrint("================================================================================")
-    pluginPrint(`${plugin_name} - ${plugin_description}`)
+    pluginPrint(`${plugin_name} - ${t(plugin_description_key)}`)
     pluginPrint(t("logo.thanks"))
     pluginPrint(t("logo.license", plugin_license))
     pluginPrint(t("logo.github", plugin_github_link))
@@ -1196,31 +1291,15 @@ function checkPluginUpdate(pluginName, currentVersion, autoUpdate = false, plugi
                             updateTime = targetInfo.update_time || t("general.unknown_time");
                             explicitTarget = true;
                         } else {
-                            // 智能选择最佳版本
+                            // 智能选择最佳版本：测试版→最新测试版，正式版→最新正式版
                             const userIsPreRelease = isPreRelease(currentVersion);
                             const sortedVers = Object.keys(versions).sort((a, b) => compareVersions(b, a)); // 降序
                             let candidateVer = null;
 
-                            if (userIsPreRelease) {
-                                // 预发布用户：第一轮找最新正式版 > 第二轮找最新预发布
-                                for (const ver of sortedVers) {
-                                    if (!isPreRelease(ver) && compareVersions(ver, currentVersion) > 0) {
-                                        candidateVer = ver; break;
-                                    }
-                                }
-                                if (!candidateVer) {
-                                    for (const ver of sortedVers) {
-                                        if (isPreRelease(ver) && compareVersions(ver, currentVersion) > 0) {
-                                            candidateVer = ver; break;
-                                        }
-                                    }
-                                }
-                            } else {
-                                // 正式版用户：找最新正式版
-                                for (const ver of sortedVers) {
-                                    if (!isPreRelease(ver) && compareVersions(ver, currentVersion) > 0) {
-                                        candidateVer = ver; break;
-                                    }
+                            for (const ver of sortedVers) {
+                                // 版本类型匹配且高于当前版本
+                                if (isPreRelease(ver) === userIsPreRelease && compareVersions(ver, currentVersion) > 0) {
+                                    candidateVer = ver; break;
                                 }
                             }
 
@@ -1830,6 +1909,7 @@ function ReloadPlugin() {
                 throw new Error("Configuration root must be an object");
             }
             pluginConfig = reloadedConfig;
+            migrateLangFiles();
             applyConfiguredLanguage();
             if (bstatsInstance) bstatsInstance.syncConfig();
             scheduleUpdateChecks();
@@ -1984,7 +2064,7 @@ function RegisterCmd() {
         if (!action) {
             if (origin.typeName == "Player") {
                 const pl = mc.getPlayer(origin.player.realName);
-                pl.tell("§a[EasyCheckUpdate] §f" + t("command.help"));
+                pl.tell(`§a[${plugin_name}] §f` + t("command.help"));
             } else {
                 pluginPrint(t("command.help"));
             }
@@ -1996,7 +2076,7 @@ function RegisterCmd() {
             const result = ReloadPlugin();
             if (origin.typeName == "Player") {
                 const pl = mc.getPlayer(origin.player.realName);
-                pl.tell(`§a[EasyCheckUpdate] §f${result}`);
+                pl.tell(`§a[${plugin_name}] §f${result}`);
             } else {
                 pluginPrint(result);
             }
@@ -2136,22 +2216,11 @@ function RegisterCmd() {
                         // 显示版本列表（支持分页），计算推荐版本 ★
                         const currentVersion = pluginInfo.plugin_version || "unknown";
                         const sortedVers = Object.keys(versions).sort((a, b) => compareVersions(b, a));
+                        const currentIsPre = isPreRelease(currentVersion);
                         let recommendedVer = null;
-                        if (isPreRelease(currentVersion)) {
-                            // 预发布用户：推荐最新正式版 > 最新预发布
-                            for (const v of sortedVers) {
-                                if (!isPreRelease(v)) { recommendedVer = v; break; }
-                            }
-                            if (!recommendedVer) {
-                                for (const v of sortedVers) {
-                                    if (isPreRelease(v)) { recommendedVer = v; break; }
-                                }
-                            }
-                        } else {
-                            // 正式版用户：推荐最新正式版
-                            for (const v of sortedVers) {
-                                if (!isPreRelease(v)) { recommendedVer = v; break; }
-                            }
+                        // 测试版→推荐最新测试版，正式版→推荐最新正式版
+                        for (const v of sortedVers) {
+                            if (isPreRelease(v) === currentIsPre) { recommendedVer = v; break; }
                         }
                         if (!recommendedVer) recommendedVer = updateData.latest_version || "";
                         printVersionList(pluginName, versions, currentVersion, recommendedVer, pageNum);
@@ -2175,7 +2244,7 @@ function RegisterCmd() {
         {
             if (origin.typeName == "Player") {
                 const pl = mc.getPlayer(origin.player.realName);
-                pl.tell("§a[EasyCheckUpdate] §f" + t("command.help"));
+                pl.tell(`§a[${plugin_name}] §f` + t("command.help"));
             } else {
                 pluginPrint(t("command.help"));
             }

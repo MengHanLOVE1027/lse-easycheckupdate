@@ -24,17 +24,13 @@ jobs:
         uses: actions/checkout@v4
 
       # ── JSON 语法检查 ──
-      - name: Validate manifest.json
+      - name: Validate JSON files
         shell: bash
         run: |
-          python3 -m json.tool manifest.json > /dev/null
-          echo "✅ manifest.json is valid JSON"
-
-      - name: Validate tooth.json
-        shell: bash
-        run: |
-          python3 -m json.tool tooth.json > /dev/null
-          echo "✅ tooth.json is valid JSON"
+          for f in manifest.json tooth.json update_versions.json; do
+            python3 -m json.tool "$f" > /dev/null
+            echo "✅ $f is valid JSON"
+          done
 
       # ── 版本一致性检查 ──
       - name: Check version consistency
@@ -42,13 +38,33 @@ jobs:
         run: |
           MANIFEST_VER=$(python3 -c "import json; print(json.load(open('manifest.json'))['version'])")
           TOOTH_VER=$(python3 -c "import json; print(json.load(open('tooth.json'))['version'])")
-          echo "manifest.json: $MANIFEST_VER"
-          echo "tooth.json:    $TOOTH_VER"
+          JS_VER=$(grep -oP 'plugin_version\s*=\s*"\K[^"]+' EasyCheckUpdate.js)
+          UPDATE_VER=$(python3 -c "import json; print(json.load(open('update_versions.json'))['latest_version'])")
+
+          echo "manifest.json:      $MANIFEST_VER"
+          echo "tooth.json:         $TOOTH_VER"
+          echo "EasyCheckUpdate.js: $JS_VER"
+          echo "update_versions:    $UPDATE_VER"
+
+          ALL_OK=1
           if [ "$MANIFEST_VER" != "$TOOTH_VER" ]; then
-            echo "❌ Version mismatch!"
+            echo "❌ manifest.json vs tooth.json mismatch!"
+            ALL_OK=0
+          fi
+          if [ "$MANIFEST_VER" != "$JS_VER" ]; then
+            echo "❌ manifest.json vs EasyCheckUpdate.js mismatch!"
+            ALL_OK=0
+          fi
+          if [ "$UPDATE_VER" != "$MANIFEST_VER" ]; then
+            echo "❌ update_versions.json latest_version mismatch!"
+            ALL_OK=0
+          fi
+
+          if [ "$ALL_OK" -eq 1 ]; then
+            echo "✅ All versions match: $MANIFEST_VER"
+          else
             exit 1
           fi
-          echo "✅ Versions match: $MANIFEST_VER"
 
       # ── JS 语法检查 ──
       - name: Setup Node.js
@@ -67,21 +83,14 @@ jobs:
         shell: bash
         run: |
           set -e
-          missing=0
-
-          for f in EasyCheckUpdate.js manifest.json; do
+          for f in EasyCheckUpdate.js manifest.json tooth.json update_versions.json; do
             if [ -f "$f" ]; then
               echo "✅ $f"
             else
               echo "❌ $f missing"
-              missing=1
+              exit 1
             fi
           done
-
-          if [ "$missing" -ne 0 ]; then
-            echo "❌ Missing required files!"
-            exit 1
-          fi
 
       # ── 模拟打包检查 ──
       - name: Verify build structure
