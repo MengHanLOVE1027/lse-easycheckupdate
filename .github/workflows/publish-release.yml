@@ -85,11 +85,9 @@ jobs:
 
           mkdir -p "${PACKAGE_DIR}"
 
-          # 复制插件文件
           cp EasyCheckUpdate.js   "${PACKAGE_DIR}/"
           cp manifest.json        "${PACKAGE_DIR}/"
 
-          # 打包
           zip -r "${ZIP_NAME}" "${PACKAGE_DIR}"
 
           echo "----- Package -----"

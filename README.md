@@ -62,9 +62,14 @@ LSE-EasyCheckUpdate 是一个专为 LeviLamina 服务器设计的插件更新检
 └── plugins/
     └── EasyCheckUpdate/                    # 插件资源目录
         ├── EasyCheckUpdate.js              # 插件主文件
-        └── config/
-            ├── EasyCheckUpdate.json        # 配置文件
-            └── .config_backup.json         # 配置自动备份（版本迁移时生成）
+        ├── manifest.json                   # 插件清单
+        ├── config/
+        │   ├── EasyCheckUpdate.json        # 配置文件
+        │   └── .config_backup.json         # 配置自动备份（版本迁移时生成）
+        └── langs/                          # 语言文件目录（首次加载自动生成）
+            ├── zh_CN.json                  # 中文翻译文件
+            ├── en_US.json                  # 英文翻译文件
+            └── .version                    # 语言文件版本记录
 ```
 
 ---
@@ -175,11 +180,21 @@ EasyCheckUpdate 内置**配置文件版本管理系统**，当插件更新后配
 - 检查间隔建议 1800-3600 秒（30-60 分钟），避免频繁请求
 - 不需要自动检查时可将 `check_update_on_load` 设为 `false`
 
-### 🌐 语言切换
+### 🌐 国际化与自定义翻译
+
+插件首次加载时会在 `langs/` 目录下自动生成 `zh_CN.json` 和 `en_US.json`。你可以直接编辑这些文件来修改翻译文本。
+
+#### 切换语言
 
 1. 打开配置文件，修改 `language` 字段为 `"zh_CN"` 或 `"en_US"`
 2. 在游戏或控制台执行 `/checkupdate reload`
 3. 所有输出（日志、游戏内通知、命令帮助）立即切换为对应语言
+
+#### 翻译文件版本迁移
+
+插件更新时会自动将新增的翻译键合并到已有的语言文件中，不会覆盖你手动修改的内容。版本通过 `langs/.version` 跟踪。
+
+> **提示**：如果语言文件损坏或误删，删除 `langs/.version` 后再执行 `/checkupdate reload` 即可重新生成。
 
 ---
 

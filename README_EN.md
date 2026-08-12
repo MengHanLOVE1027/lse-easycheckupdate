@@ -62,9 +62,14 @@ Server Root/
 └── plugins/
     └── EasyCheckUpdate/                    # Plugin resource directory
         ├── EasyCheckUpdate.js              # Main plugin file
-        └── config/
-            ├── EasyCheckUpdate.json        # Configuration file
-            └── .config_backup.json         # Auto backup (generated during config migration)
+        ├── manifest.json                   # Plugin manifest
+        ├── config/
+        │   ├── EasyCheckUpdate.json        # Configuration file
+        │   └── .config_backup.json         # Auto backup (generated during config migration)
+        └── langs/                          # Language files (auto-generated on first load)
+            ├── zh_CN.json                  # Chinese translations
+            ├── en_US.json                  # English translations
+            └── .version                    # Language file version record
 ```
 
 ---
@@ -175,11 +180,21 @@ The plugin supports automatically checking updates for all plugins when loaded, 
 - Check interval: 1800-3600 seconds (30-60 min) recommended to avoid excessive requests
 - Set `check_update_on_load` to `false` if automatic checks are not needed
 
-### 🌐 Language Switching
+### 🌐 Internationalization & Custom Translations
+
+On first load, the plugin auto-generates `zh_CN.json` and `en_US.json` in the `langs/` directory. You can directly edit these files to customize translations.
+
+#### Switching Language
 
 1. Open the config file and change `language` to `"zh_CN"` or `"en_US"`
 2. Run `/checkupdate reload` in-game or in console
 3. All output (logs, in-game messages, command help) switches to the selected language immediately
+
+#### Translation File Version Migration
+
+When the plugin updates, new translation keys are automatically merged into existing language files without overwriting your custom edits. The version is tracked via `langs/.version`.
+
+> **Tip**: If language files get corrupted or accidentally deleted, remove `langs/.version` then run `/checkupdate reload` to regenerate them.
 
 ---
 
