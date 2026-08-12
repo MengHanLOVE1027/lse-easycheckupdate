@@ -3,7 +3,7 @@
 // 声明常量
 const plugin_name = "EasyCheckUpdate",
     plugin_name_smallest = "easycheckupdate",
-    plugin_version = "0.2.2",
+    plugin_version = "0.2.3",
     plugin_description_key = "logo.description",
     plugin_github_link = "https://github.com/MengHanLOVE1027/lse-easycheckupdate",
     plugin_minebbs_link = "https://www.minebbs.com/resources/easycheckupdate-ecu-lse.15501/",
@@ -1303,6 +1303,13 @@ function checkPluginUpdate(pluginName, currentVersion, autoUpdate = false, plugi
                                 }
                             }
 
+                            // 同类型没找到则回退到 latest_version
+                            if (!candidateVer) candidateVer = updateData.latest_version || "";
+                            // latest_version 不高于当前版本则视为无更新
+                            if (candidateVer && compareVersions(candidateVer, currentVersion) <= 0) {
+                                candidateVer = null;
+                            }
+
                             if (!candidateVer) {
                                 pluginPrint(t("update.up_to_date", pluginName, currentVersion));
                                 return;
@@ -2218,11 +2225,17 @@ function RegisterCmd() {
                         const sortedVers = Object.keys(versions).sort((a, b) => compareVersions(b, a));
                         const currentIsPre = isPreRelease(currentVersion);
                         let recommendedVer = null;
-                        // 测试版→推荐最新测试版，正式版→推荐最新正式版
+                        // 测试版→推荐最新测试版，正式版→推荐最新正式版（跳过当前版本）
                         for (const v of sortedVers) {
-                            if (isPreRelease(v) === currentIsPre) { recommendedVer = v; break; }
+                            if (isPreRelease(v) === currentIsPre && compareVersions(v, currentVersion) > 0) {
+                                recommendedVer = v; break;
+                            }
                         }
                         if (!recommendedVer) recommendedVer = updateData.latest_version || "";
+                        // 推荐版本等于当前版本时不显示★（版本高于或低于当前版本都显示）
+                        if (recommendedVer && compareVersions(recommendedVer, currentVersion) === 0) {
+                            recommendedVer = "";
+                        }
                         printVersionList(pluginName, versions, currentVersion, recommendedVer, pageNum);
                     }
                 } catch (e) {
