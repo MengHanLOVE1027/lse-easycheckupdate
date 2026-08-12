@@ -3,7 +3,7 @@
 // 声明常量
 const plugin_name = "EasyCheckUpdate",
     plugin_name_smallest = "easycheckupdate",
-    plugin_version = "0.2.0",
+    plugin_version = "0.2.1-beta.1",
     plugin_description = "一个基于 LSE 的插件更新检查工具 / A plugin update checker based on LSE.",
     plugin_github_link = "https://github.com/MengHanLOVE1027/lse-easycheckupdate",
     plugin_minebbs_link = "https://www.minebbs.com/resources/easycheckupdate-ecu-lse.15501/",
@@ -16,6 +16,7 @@ let pluginConfig = null;
 let bstatsInstance = null;
 // 定时器管理（LSE QuickJS 不支持 clearTimeout/clearInterval，使用代数计数器取消旧定时器）
 let scheduleGeneration = 0;
+let checkingInProgress = false;
 // #endregion
 
 // TAG: I18N 国际化模块
@@ -75,7 +76,10 @@ const I18N_DATA = {
         "update.no_update_url": "未找到插件 {0} 的 update_url 字段，无法检查更新",
         "update.check_done": "检查完成，共检查了 {0} 个支持更新检查的插件",
         "update.no_plugins": "没有找到支持更新检查的插件",
-        "update.version_list": "插件 {0} 的可用版本列表:",
+        "update.check_time_guard": "距上次检查不足 {0} 秒，跳过检查",
+        "update.checking_in_progress": "更新检查正在进行中，请稍后再试",
+        "update.version_list": "插件 {0} 的可用版本列表 (第{1}/{2}页, {3}-{4}/{5}):",
+        "update.version_list_next": "使用 /checkupdate info {0} p{1} 查看下一页",
         "update.version_detail": "插件 {0} 版本 v{1} 的详细信息:",
         "update.fetch_failed": "获取插件 {0} 的更新信息失败，状态码: {1}",
         "update.parse_version_error": "解析版本信息时出错: {0}",
@@ -134,7 +138,7 @@ const I18N_DATA = {
         // ── 命令 / 帮助 ──
         "command.desc": "检查插件更新",
         "command.no_permission": "你没有权限使用此命令",
-        "command.help": "命令帮助:\n/checkupdate - 显示此帮助信息\n/checkupdate all - 检查所有插件的更新\n/checkupdate reload - 重载插件\n/checkupdate <插件名称> - 检查指定插件的更新\n/checkupdate update <插件名称> [版本号] - 更新指定插件\n/checkupdate info <插件名称> [版本号] - 查看版本列表或版本详情",
+        "command.help": "命令帮助:\n/checkupdate - 显示此帮助信息\n/checkupdate all - 检查所有插件的更新\n/checkupdate reload - 重载插件\n/checkupdate check <插件名称> - 检查指定插件的更新\n/checkupdate update <插件名称> [版本号] - 更新指定插件\n/checkupdate info <插件名称> [版本号|p页码] - 查看版本列表或版本详情",
         "command.update_usage": "用法: /checkupdate update <插件名称> [版本号]",
         "command.info_usage": "用法: /checkupdate info <插件名称> [版本号]",
         "command.checking_update": "正在检查并更新插件 {0}，请查看控制台获取详细信息",
@@ -216,7 +220,10 @@ const I18N_DATA = {
         "update.no_update_url": "update_url field not found for plugin {0}, unable to check for updates",
         "update.check_done": "Check complete, {0} update-capable plugin(s) checked",
         "update.no_plugins": "No plugins supporting update checks found",
-        "update.version_list": "Available versions for plugin {0}:",
+        "update.check_time_guard": "Less than {0} seconds since last check, skipping",
+        "update.checking_in_progress": "Update check already in progress, try later",
+        "update.version_list": "Available versions for plugin {0} (Page {1}/{2}, {3}-{4}/{5}):",
+        "update.version_list_next": "Use /checkupdate info {0} p{1} to view next page",
         "update.version_detail": "Details for plugin {0} version v{1}:",
         "update.fetch_failed": "Failed to fetch update info for {0}, status code: {1}",
         "update.parse_version_error": "Error parsing version info: {0}",
@@ -275,7 +282,7 @@ const I18N_DATA = {
         // ── Command / Help ──
         "command.desc": "Check plugin updates",
         "command.no_permission": "You do not have permission to use this command",
-        "command.help": "Command Help:\n/checkupdate - Show this help\n/checkupdate all - Check all plugins for updates\n/checkupdate reload - Reload plugin\n/checkupdate <plugin> - Check specified plugin for updates\n/checkupdate update <plugin> [version] - Update specified plugin\n/checkupdate info <plugin> [version] - View version list or details",
+        "command.help": "Command Help:\n/checkupdate - Show this help\n/checkupdate all - Check all plugins for updates\n/checkupdate reload - Reload plugin\n/checkupdate check <plugin> - Check specified plugin for updates\n/checkupdate update <plugin> [version] - Update specified plugin\n/checkupdate info <plugin> [version|page] - View version list or details",
         "command.update_usage": "Usage: /checkupdate update <plugin> [version]",
         "command.info_usage": "Usage: /checkupdate info <plugin> [version]",
         "command.checking_update": "Checking and updating plugin {0}, check console for details",
@@ -997,6 +1004,15 @@ function isPreRelease(version) {
     return /[a-zA-Z]/.test(String(version == null ? "" : version).replace(/^[vV]/, ''));
 }
 
+/**
+ * 标准化版本号：去除开头的 v 或 V 前缀
+ * @param {String} ver 版本号
+ * @returns {String} 标准化后的版本号
+ */
+function normalizeVersion(ver) {
+    return String(ver == null ? "" : ver).replace(/^[vV]/, '');
+}
+
 function findVersionKey(versions, requestedVersion) {
     if (versions[requestedVersion]) return requestedVersion;
     const normalized = String(requestedVersion).replace(/^[vV]/, '');
@@ -1041,23 +1057,61 @@ function getPluginUpdateInfo(pluginName) {
 }
 
 /**
- * 打印插件的版本列表（多版本格式）
+ * 打印单个版本的详细信息
+ * @param {String} pluginName 插件名称
+ * @param {String} versionKey 版本号键名
+ * @param {Object} verInfo 版本信息对象
+ */
+function printVersionDetail(pluginName, versionKey, verInfo) {
+    const tag = t(isPreRelease(versionKey) ? "general.pre_release" : "general.stable");
+    pluginPrint(t("update.version_detail", pluginName, versionKey));
+    pluginPrint(t("update.author", verInfo.author || t("general.unknown_author")));
+    pluginPrint(t("update.time", verInfo.update_time || t("general.unknown_time")));
+    pluginPrint(t("update.type", tag));
+    pluginPrint(t("update.content", verInfo.update_content || t("general.no_content")));
+    const downloadUrl = verInfo.download_url || "";
+    if (downloadUrl) {
+        pluginPrint(t("update.download_url", downloadUrl));
+    }
+}
+
+/**
+ * 打印插件的版本列表（多版本格式，支持分页）
  * @param {String} pluginName 插件名称
  * @param {Object} versions 版本信息对象
  * @param {String} currentVersion 当前版本
  * @param {String|null} recommendedVer 推荐升级版本，null表示无更新
  * @param {Boolean} userIsPreRelease 用户当前是否为预发布版本
+ * @param {Number} page 页码（从1开始）
+ * @param {Number} perPage 每页条数
  */
-function printVersionList(pluginName, versions, currentVersion, recommendedVer, userIsPreRelease) {
-    pluginPrint(t("update.version_list", pluginName));
-    const sorted = Object.keys(versions).sort((a, b) => compareVersions(b, a)); // 降序排列
-    for (const ver of sorted) {
-        // 正式版用户不显示测试版
-        if (!userIsPreRelease && isPreRelease(ver)) continue;
+function printVersionList(pluginName, versions, currentVersion, recommendedVer, userIsPreRelease, page = 1, perPage = 10) {
+    // 构建过滤后的版本列表（降序）
+    let sorted = Object.keys(versions).sort((a, b) => compareVersions(b, a));
+    if (!userIsPreRelease) {
+        sorted = sorted.filter(ver => !isPreRelease(ver));
+    }
+
+    const totalCount = sorted.length;
+    const totalPages = Math.max(1, Math.ceil(totalCount / perPage));
+    if (page < 1) page = 1;
+    if (page > totalPages) page = totalPages;
+
+    const startIndex = (page - 1) * perPage;
+    const endIndex = Math.min(startIndex + perPage, totalCount);
+    const pageSlice = sorted.slice(startIndex, endIndex);
+
+    pluginPrint(t("update.version_list", pluginName, page, totalPages, startIndex + 1, endIndex, totalCount));
+
+    for (const ver of pageSlice) {
         const tag = t(isPreRelease(ver) ? "general.pre_release" : "general.stable");
         const marker = compareVersions(ver, currentVersion) === 0 ? t("general.current_version") : "";
         const latest = ver === recommendedVer ? t("general.recommended") : "";
         pluginPrint(`  v${ver} (${tag})${latest}${marker}`);
+    }
+
+    if (page < totalPages) {
+        pluginPrint(t("update.version_list_next", pluginName, page + 1));
     }
 }
 
@@ -1146,18 +1200,31 @@ function checkPluginUpdate(pluginName, currentVersion, autoUpdate = false, plugi
                             updateTime = targetInfo.update_time || t("general.unknown_time");
                             explicitTarget = true;
                         } else {
-                            // 智能选择最佳版本：正式版用户跳过测试版，测试版用户沿升级链逐级升级
+                            // 智能选择最佳版本
                             const userIsPreRelease = isPreRelease(currentVersion);
+                            const sortedVers = Object.keys(versions).sort((a, b) => compareVersions(b, a)); // 降序
                             let candidateVer = null;
 
-                            for (const ver of Object.keys(versions)) {
-                                // 正式版用户跳过预发布版本
-                                if (!userIsPreRelease && isPreRelease(ver)) continue;
-                                // 只考虑比当前版本新的
-                                if (compareVersions(ver, currentVersion) <= 0) continue;
-                                // 取最小的（最近的升级步骤）
-                                if (!candidateVer || compareVersions(ver, candidateVer) < 0) {
-                                    candidateVer = ver;
+                            if (userIsPreRelease) {
+                                // 预发布用户：第一轮找最新正式版 > 第二轮找最新预发布
+                                for (const ver of sortedVers) {
+                                    if (!isPreRelease(ver) && compareVersions(ver, currentVersion) > 0) {
+                                        candidateVer = ver; break;
+                                    }
+                                }
+                                if (!candidateVer) {
+                                    for (const ver of sortedVers) {
+                                        if (isPreRelease(ver) && compareVersions(ver, currentVersion) > 0) {
+                                            candidateVer = ver; break;
+                                        }
+                                    }
+                                }
+                            } else {
+                                // 正式版用户：找最新正式版
+                                for (const ver of sortedVers) {
+                                    if (!isPreRelease(ver) && compareVersions(ver, currentVersion) > 0) {
+                                        candidateVer = ver; break;
+                                    }
                                 }
                             }
 
@@ -1827,8 +1894,27 @@ function scheduleUpdateChecks() {
 
 /**
  * 检查所有插件的更新
+ * @param {Boolean} force 是否强制检查（跳过时间间隔限制）
  */
-function checkAllPluginsUpdate() {
+function checkAllPluginsUpdate(force = false) {
+    // 并发守卫：防止重叠检查
+    if (checkingInProgress) {
+        pluginPrint(t("update.checking_in_progress"), "WARNING");
+        return;
+    }
+
+    // 时间间隔守卫
+    if (!force && pluginConfig) {
+        const now = Math.floor(Date.now() / 1000);
+        const lastCheck = pluginConfig.last_check_time || 0;
+        const interval = Number(pluginConfig.check_interval);
+        if (Number.isFinite(interval) && interval > 0 && (now - lastCheck) < interval / 4) {
+            pluginPrint(t("update.check_time_guard", Math.floor(interval / 4)), "INFO");
+            return;
+        }
+    }
+
+    checkingInProgress = true;
     pluginPrint(t("update.checking_all"));
 
     // 获取所有已加载的插件
@@ -1849,6 +1935,7 @@ function checkAllPluginsUpdate() {
                 pending--;
                 if (pending === 0) {
                     recordLastCheckTime();
+                    checkingInProgress = false;
                     pluginPrint(t("update.check_done", checkedCount), "SUCCESS");
                 }
             });
@@ -1858,6 +1945,7 @@ function checkAllPluginsUpdate() {
     // 边界情况：没有任何插件支持更新检查
     if (pending === 0) {
         recordLastCheckTime();
+        checkingInProgress = false;
         pluginPrint(t("update.no_plugins"), "INFO");
     }
 }
@@ -1919,6 +2007,37 @@ function RegisterCmd() {
             return output.success();
         }
 
+        // 子命令：check <插件名>
+        if (action === "check") {
+            const pluginName = results.target;
+            if (!pluginName) {
+                if (origin.typeName == "Player") {
+                    const pl = mc.getPlayer(origin.player.realName);
+                    pl.tell("§c" + t("command.update_usage"));
+                } else {
+                    pluginPrint(t("command.update_usage"));
+                }
+                return output.success();
+            }
+            const pluginInfo = getPluginUpdateInfo(pluginName);
+            if (pluginInfo) {
+                const currentVersion = pluginInfo.plugin_version || "unknown";
+                checkPluginUpdate(pluginName, currentVersion, false, pluginInfo);
+                if (origin.typeName == "Player") {
+                    const pl = mc.getPlayer(origin.player.realName);
+                    pl.tell("§a" + t("command.checking_plugin", pluginName));
+                }
+            } else {
+                if (origin.typeName == "Player") {
+                    const pl = mc.getPlayer(origin.player.realName);
+                    pl.tell("§c" + t("command.plugin_not_found", pluginName));
+                } else {
+                    pluginPrint(t("command.plugin_not_found", pluginName), "ERROR");
+                }
+            }
+            return output.success();
+        }
+
         // 子命令：all
         if (action === "all") {
             checkAllPluginsUpdate();
@@ -1942,7 +2061,7 @@ function RegisterCmd() {
                 return output.success();
             }
 
-            const targetVer = results.version || null;
+            const targetVer = results.version ? normalizeVersion(results.version) : null;
             const pluginInfo = getPluginUpdateInfo(pluginName);
             if (pluginInfo) {
                 const currentVersion = pluginInfo.plugin_version || "unknown";
@@ -1962,10 +2081,18 @@ function RegisterCmd() {
             return output.success();
         }
 
-        // 子命令：info <插件名> [版本号]
+        // 子命令：info <插件名> [版本号|p页码]
         if (action === "info") {
             const pluginName = results.target;
-            const versionName = results.version || null;
+            let versionName = results.version || null;
+            let pageNum = 1;
+            // 解析分页参数 (如 p2)
+            if (versionName && /^p\d+$/i.test(versionName)) {
+                pageNum = parseInt(versionName.substring(1), 10);
+                versionName = null;
+            } else if (versionName) {
+                versionName = normalizeVersion(versionName);
+            }
             if (!pluginName) {
                 if (origin.typeName == "Player") {
                     const pl = mc.getPlayer(origin.player.realName);
@@ -2003,23 +2130,17 @@ function RegisterCmd() {
 
                     if (versionName) {
                         // 查看指定版本详情
-                        const verInfo = versions[versionName];
-                        if (!verInfo) {
+                        const verKey = findVersionKey(versions, versionName);
+                        if (!verKey || !versions[verKey]) {
                             pluginPrint(t("update.version_not_found", pluginName, versionName), "WARNING");
                             return;
                         }
-                        const tag = t(isPreRelease(versionName) ? "general.pre_release" : "general.stable");
-                        pluginPrint(t("update.version_detail", pluginName, versionName));
-                        pluginPrint(t("update.author", verInfo.author || t("general.unknown_author")));
-                        pluginPrint(t("update.time", verInfo.update_time || t("general.unknown_time")));
-                        pluginPrint(t("update.type", tag));
-                        pluginPrint(t("update.content", verInfo.update_content || t("general.no_content")));
-                        pluginPrint(t("update.download_url", verInfo.download_url || t("general.none")));
+                        printVersionDetail(pluginName, verKey, versions[verKey]);
                     } else {
-                        // 显示版本列表
+                        // 显示版本列表（支持分页）
                         const currentVersion = pluginInfo.plugin_version || "unknown";
                         const userIsPre = isPreRelease(currentVersion);
-                        printVersionList(pluginName, versions, currentVersion, null, userIsPre);
+                        printVersionList(pluginName, versions, currentVersion, null, userIsPre, pageNum);
                     }
                 } catch (e) {
                     pluginPrint(t("update.parse_version_error", e.message), "WARNING");
@@ -2036,25 +2157,13 @@ function RegisterCmd() {
             return output.success();
         }
 
-        // 默认：action 即插件名 → 检查指定插件更新
+        // 未知子命令 → 显示帮助
         {
-            const pluginName = action;
-            const pluginInfo = getPluginUpdateInfo(pluginName);
-
-            if (pluginInfo) {
-                const currentVersion = pluginInfo.plugin_version || "unknown";
-                checkPluginUpdate(pluginName, currentVersion);
-                if (origin.typeName == "Player") {
-                    const pl = mc.getPlayer(origin.player.realName);
-                    pl.tell(`§a` + t("command.checking_plugin", pluginName));
-                }
+            if (origin.typeName == "Player") {
+                const pl = mc.getPlayer(origin.player.realName);
+                pl.tell("§a[EasyCheckUpdate] §f" + t("command.help"));
             } else {
-                if (origin.typeName == "Player") {
-                    const pl = mc.getPlayer(origin.player.realName);
-                    pl.tell(`§c` + t("command.plugin_not_found", pluginName));
-                } else {
-                    pluginPrint(t("command.plugin_not_found", pluginName), "ERROR");
-                }
+                pluginPrint(t("command.help"));
             }
             return output.success();
         }
