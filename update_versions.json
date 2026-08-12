@@ -1,6 +1,12 @@
 {
-    "latest_version": "0.2.2-beta.1",
+    "latest_version": "0.2.2",
     "versions": {
+        "0.2.2": {
+            "download_url": "https://github.com/MengHanLOVE1027/lse-easycheckupdate/releases/download/v0.2.2/EasyCheckUpdate-v0.2.2.zip",
+            "update_content": "feat: 0.2.2 正式版 — i18n 外部语言文件支持、版本推荐策略简化（同类型匹配）、代码清理、CI 完善",
+            "author": "梦涵LOVE",
+            "update_time": "2026-08-12 17:46:00"
+        },
         "0.2.2-beta.1": {
             "download_url": "https://github.com/MengHanLOVE1027/lse-easycheckupdate/releases/download/v0.2.2-beta.1/EasyCheckUpdate-v0.2.2-beta.1.zip",
             "update_content": "feat: 0.2.2-beta.1 — i18n 外部语言文件支持、版本推荐策略简化（同类型推荐）、代码清理",

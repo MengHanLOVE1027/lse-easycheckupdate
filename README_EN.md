@@ -105,7 +105,7 @@ Configuration file location: `plugins/EasyCheckUpdate/config/EasyCheckUpdate.jso
 
 ```json
 {
-  "Version": "0.2.2-beta.1",     // Config version (tracks plugin version, auto-managed — do NOT edit)
+  "Version": "0.2.2",     // Config version (tracks plugin version, auto-managed — do NOT edit)
   "language": "zh_CN",           // Output language: "zh_CN" (Chinese) or "en_US" (English)
 
   // 📊 BStats telemetry configuration
